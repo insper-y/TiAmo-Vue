@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#6366f1">
+  <title>Tiamo AI 数据管理</title>
+  <script type="module" crossorigin src="/tiamo-vue3/assets/index-BboQGhMP.js"></script>
+  <link rel="modulepreload" crossorigin href="/tiamo-vue3/assets/vue-vendor-D8A8FTEJ.js">
+  <link rel="stylesheet" crossorigin href="/tiamo-vue3/assets/index-DbCZeklo.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div id="error-display" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#fff;z-index:99999;padding:20px;overflow:auto;font-size:14px;"></div>
+  <div id="debug-panel" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#0f0;z-index:99998;padding:10px;font-size:11px;max-height:150px;overflow:auto;"></div>
+  <script>
+    var debugPanel = document.getElementById('debug-panel');
+    function updateDebug() {
+      if (debugPanel) {
+        var app = document.getElementById('app');
+        debugPanel.innerHTML = 'URL: ' + location.href + '<br>' +
+          'Title: ' + document.title + '<br>' +
+          'app.innerHTML长度: ' + (app ? app.innerHTML.length : 0) + '<br>' +
+          'app.innerHTML前200字符: ' + (app ? app.innerHTML.substring(0, 200).replace(/</g, '&lt;') : '无') + '<br>' +
+          'localStorage token: ' + (localStorage.getItem('tiamo_token') ? '有' : '无') + '<br>' +
+          'localStorage user: ' + (localStorage.getItem('tiamo_user') || '无');
+      }
+    }
+    setInterval(updateDebug, 1000);
+    updateDebug();
+    // 自动登录（测试用）
+    localStorage.setItem('tiamo_token', 'eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySWQiOjQsInVzZXJuYW1lIjoiYWRtaW4iLCJzdWIiOiJhZG1pbiIsImlhdCI6MTc4OTMyMDU1NiwiZXhwIjoxNzg5NDA2OTU2fQ.rX9b4_4--CFQ6TGqSa0N-kNmigr0r4u1SVYqa4L4Pak1ULHHXd5Yq4NQGXG-a5c9jRWYmyFzq4FxrJp5p_vL5g');
+    localStorage.setItem('tiamo_user', JSON.stringify({userId:4,username:'admin',nickname:'系统管理员',role:1}));
+    window.addEventListener('error', function(e) {
+      var ed = document.getElementById('error-display');
+      if (ed) {
+        ed.style.display = 'block';
+        ed.innerHTML = '<h3 style="color:red;">页面错误</h3><p><b>消息:</b> ' + e.message + '</p><p><b>来源:</b> ' + e.filename + '</p><p><b>行号:</b> ' + e.lineno + ':' + e.colno + '</p><p><b>堆栈:</b></p><pre style="white-space:pre-wrap;font-size:12px;">' + (e.error && e.error.stack ? e.error.stack : '无') + '</pre>';
+      }
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      var ed = document.getElementById('error-display');
+      if (ed) {
+        ed.style.display = 'block';
+        ed.innerHTML += '<h3 style="color:orange;">Promise错误</h3><p><b>原因:</b> ' + e.reason + '</p>';
+      }
+    });
+  </script>
+</body>
+</html>
