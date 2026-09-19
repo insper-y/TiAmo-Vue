@@ -100,10 +100,10 @@ export const listPending = async () => {
 // —— 分片并行上传：大文件切 2MB 小块、4 路并发，聚合隧道带宽；刷新后凭 qid 查进度只补差异 ——
 import { chunkApi } from '../api'
 
-// 768KB/片 + 3路并发：Cloudflare 对>100s的源站请求会掐断，小分片保证每请求快速完成，
+// 512KB/片 + 4路并发：Cloudflare 对>100s的源站请求会掐断，小分片保证每请求快速完成，
 // 单片失败只重传一片，刷新后也能按片续传
-const CHUNK = 768 * 1024
-const CHUNK_CONC = 3
+const CHUNK = 512 * 1024
+const CHUNK_CONC = 4
 
 export async function uploadInChunks(record, onProgress) {
   const blob = record.blob

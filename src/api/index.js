@@ -155,7 +155,7 @@ export default request
 // 分片上传
 export const chunkApi = {
   upload: (fd) => request.post('/api/chunk/upload', fd, {
-    headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000
+    headers: { 'Content-Type': 'multipart/form-data' }, timeout: 90000
   }),
   status: (qid) => request.get(`/api/chunk/status/${qid}`, { timeout: 15000 }),
   merge: (payload) => request.post('/api/chunk/merge', payload, { timeout: 120000 })
