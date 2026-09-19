@@ -19,14 +19,41 @@ request.interceptors.request.use(
   error => Promise.reject(error)
 )
 
+// 401 去重：并发请求同时失效时只跳一次登录页
+let redirecting = false
+
+const redirectToLogin = () => {
+  localStorage.removeItem('tiamo_token')
+  localStorage.removeItem('tiamo_user')
+  localStorage.removeItem('tiamo_token_exp')
+  if (redirecting) return
+  redirecting = true
+  // hash 路由：当前地址形如 #/dashboard?tab=album
+  const hash = window.location.hash || ''
+  const current = hash.startsWith('#') ? hash.slice(1) : '/'
+  const target = current && current !== '/' && !current.startsWith('/login')
+    ? `/login?redirect=${encodeURIComponent(current)}`
+    : '/login'
+  if (window.location.hash.slice(1) !== target) {
+    window.location.hash = '#' + target
+  }
+  // 已在登录页时刷新一次，确保组件状态干净
+  setTimeout(() => { redirecting = false }, 800)
+}
+
 // 响应拦截器
 request.interceptors.response.use(
-  response => response.data,
+  response => {
+    // 后端约定：HTTP 200 但业务码 401 也视为登录失效
+    const data = response.data
+    if (data && data.code === 401) {
+      redirectToLogin()
+    }
+    return data
+  },
   error => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('tiamo_token')
-      localStorage.removeItem('tiamo_user')
-      window.location.href = '/login'
+      redirectToLogin()
     }
     return Promise.reject(error)
   }
@@ -97,8 +124,26 @@ export const logApi = {
 export const runLogApi = {
   list: (params) => request.get('/api/run-log/list', { params }),
   stats: () => request.get('/api/run-log/stats'),
-  clearAll: () => request.post('/api/run-log/clear-all'),
-  clean: (days) => request.post('/api/run-log/clean', { days })
+  detail: (id) => request.get(`/api/run-log/${id}`),
+  // 后端实际提供的是 DELETE /clean?days=N 与 DELETE /clean-today
+  clean: (days) => request.delete('/api/run-log/clean', { params: { days } }),
+  cleanToday: () => request.delete('/api/run-log/clean-today'),
+  // —— 文件日志两个模块 ——
+  files: () => request.get('/api/run-log/files'),
+  springboot: (params) => request.get('/api/run-log/springboot', { params, timeout: 60000 }),
+  nginx: (params) => request.get('/api/run-log/nginx', { params, timeout: 60000 }),
+  clearFile: (module) => request.post('/api/run-log/file/clear', { module })
+}
+
+// 系统设置
+export const systemApi = {
+  profile: () => request.get('/api/system/profile'),
+  changePassword: (data) => request.post('/api/system/change-password', data),
+  getSettings: () => request.get('/api/system/settings'),
+  saveSettings: (data) => request.put('/api/system/settings', data),
+  cleanupPreview: () => request.get('/api/system/cleanup/preview'),
+  cleanup: (data) => request.post('/api/system/cleanup', data, { timeout: 300000 }),
+  permissions: () => request.get('/api/system/permissions')
 }
 
 // 服务器状态
@@ -112,10 +157,11 @@ export const exportApi = {
   downloadBooks: () => request.get('/api/export/books', { responseType: 'blob' }),
   downloadLogs: () => request.get('/api/export/logs', { responseType: 'blob' }),
   downloadRunLogs: () => request.get('/api/export/run-logs', { responseType: 'blob' }),
-  sendUsersEmail: () => request.post('/api/export/users/email'),
-  sendBooksEmail: () => request.post('/api/export/books/email'),
-  sendLogsEmail: () => request.post('/api/export/logs/email'),
-  sendRunLogsEmail: () => request.post('/api/export/run-logs/email')
+  // 传 email 则发到指定邮箱；不传时后端回落到「邮件配置」中的收件邮箱
+  sendUsersEmail: (email) => request.post('/api/export/users/email', email ? { email } : {}),
+  sendBooksEmail: (email) => request.post('/api/export/books/email', email ? { email } : {}),
+  sendLogsEmail: (email) => request.post('/api/export/logs/email', email ? { email } : {}),
+  sendRunLogsEmail: (email) => request.post('/api/export/run-logs/email', email ? { email } : {})
 }
 
 // 数据库管理

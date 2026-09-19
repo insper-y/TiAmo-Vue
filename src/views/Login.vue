@@ -66,11 +66,12 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { authApi } from '../api'
 import { auth, toast } from '../utils'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const showPassword = ref(false)
 
@@ -81,13 +82,30 @@ const form = reactive({
 })
 
 onMounted(() => {
+  // 只回填用户名。原先连明文密码一起存在 localStorage 里，
+  // 任何 XSS 或共用设备都能直接读到，现在改为靠长效 Token 实现「记住我」。
   const saved = localStorage.getItem('tiamo_remember')
   if (saved) {
-    const data = JSON.parse(saved)
-    form.username = data.username || ''
-    form.password = data.password || ''
-    form.remember = true
+    try {
+      const data = JSON.parse(saved)
+      if (typeof data === 'string') {
+        form.username = data
+      } else {
+        form.username = data.username || ''
+      }
+      form.remember = true
+    } catch (e) {
+      localStorage.removeItem('tiamo_remember')
+    }
   }
+  // 清理历史遗留的明文密码
+  try {
+    const legacy = localStorage.getItem('tiamo_remember')
+    if (legacy && legacy.includes('password')) {
+      const d = JSON.parse(legacy)
+      if (d && d.password) localStorage.setItem('tiamo_remember', JSON.stringify({ username: d.username || '' }))
+    }
+  } catch (e) { /* 忽略 */ }
 })
 
 const handleLogin = async () => {
@@ -100,24 +118,29 @@ const handleLogin = async () => {
   try {
     const res = await authApi.login({
       username: form.username,
-      password: form.password
+      password: form.password,
+      // 勾选后由后端签发 7 天 Token，未勾选为 12 小时
+      remember: !!form.remember
     })
 
     if (res.code === 200 && res.data) {
-      auth.setToken(res.data.token)
+      auth.setToken(res.data.token, res.data.expiresAt)
       auth.setUser(res.data)
 
       if (form.remember) {
-        localStorage.setItem('tiamo_remember', JSON.stringify({
-          username: form.username,
-          password: form.password
-        }))
+        localStorage.setItem('tiamo_remember', JSON.stringify({ username: form.username }))
       } else {
         localStorage.removeItem('tiamo_remember')
       }
 
       toast.success('登录成功')
-      router.push('/dashboard')
+      // 登录前被守卫拦下的目标页，登录成功后回到原处
+      const redirect = route.query.redirect
+      if (redirect && typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('/login')) {
+        router.replace(redirect)
+      } else {
+        router.push('/dashboard')
+      }
     } else {
       toast.error(res.msg || '登录失败')
     }

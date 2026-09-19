@@ -164,7 +164,9 @@
             </div>
             <div class="export-actions">
               <button class="btn btn-sm" @click="downloadData(item.key)">下载</button>
-              <button class="btn btn-sm" @click="sendEmail(item.key)">发邮箱</button>
+              <button class="btn btn-sm" :disabled="sendingEmail === item.key" @click="sendEmail(item.key)">
+                {{ sendingEmail === item.key ? '发送中…' : '发邮箱' }}
+              </button>
             </div>
           </div>
         </div>
@@ -233,7 +235,7 @@
             </div>
             <button class="album-del" title="删除" @click.stop="deleteAlbumItem(item)">×</button>
             <span v-if="item.uploading" class="album-uploading">{{ '上传中 ' + (item.progress || 0) + '%' }}</span>
-            <span v-else-if="item.failed" class="album-failed">已中断·自动续传</span>
+            <span v-else-if="item.failed" class="album-failed">{{ item.rejected ? '不符合要求·已停止' : '已中断·自动续传' }}</span>
             <span v-if="item.transcoding" class="album-transcoding">转码中</span>
             <span class="album-type">{{ item.type === 'image' ? '图片' : '视频' }}</span>
           </div>
@@ -368,7 +370,9 @@ const quickFunctions = computed(() => [
   { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' },
   { key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' },
   { key: 'oplog', name: '操作日志', route: '/logs', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
-  { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' }
+  { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' },
+  // 系统设置仅管理员可见
+  ...(auth.isAdmin() ? [{ key: 'settings', name: '系统设置', route: '/settings', icon: '🛠️', bg: 'linear-gradient(135deg,#6366f1,#4f46e5)' }] : [])
 ])
 
 const openFunction = (func) => {
@@ -648,8 +652,8 @@ const tryUpload = async (record, temp) => {
   }
   try {
     let res
-    if (record.blob.size >= 1024 * 1024) {
-      // 大文件走分片并行通道，聚合多条连接的链路带宽
+    if (record.blob.size >= 4 * 1024 * 1024) {
+      // 4MB 以上才走分片并行通道：小文件分片的握手与调度开销反而更慢
       res = await uploadInChunks(record, setProgress)
     } else {
       const formData = new FormData()
@@ -686,10 +690,17 @@ const uploadOne = async (record, temp) => {
     await new Promise(r => setTimeout(r, 2000 * (attempt + 1)))
     temp.progress = 0
   }
-  if (result === 'fail' || result === 'rejected') {
+  if (result === 'rejected') {
+    // 业务性拒绝（格式/大小不符）重试无意义，必须移出本地队列，
+    // 否则这条任务会变成永久"上传中"的僵尸记录，每次进页面都重复提示续传
+    try { await removePending(record.qid) } catch (e) { /* 存储不可用时忽略 */ }
     temp.uploading = false
     temp.failed = true
-    if (result === 'fail') toast.error(`"${temp.name}" 上传失败，已保留，稍后自动续传`)
+    temp.rejected = true
+  } else if (result === 'fail') {
+    temp.uploading = false
+    temp.failed = true
+    toast.error(`"${temp.name}" 上传失败，已保留，稍后自动续传`)
   }
 }
 
@@ -740,14 +751,57 @@ const handleUpload = async (type, e) => {
   }
 }
 
+// 读取 Blob 头部若干字节，确认数据仍真实可读
+const readBlobProbe = (blob) => new Promise((resolve) => {
+  try {
+    const probe = blob.slice(0, Math.min(16, blob.size))
+    if (typeof probe.arrayBuffer === 'function') {
+      probe.arrayBuffer().then(buf => resolve(buf && buf.byteLength > 0), () => resolve(false))
+      return
+    }
+    // 老浏览器兜底：FileReader
+    const fr = new FileReader()
+    fr.onload = () => resolve(!!fr.result && fr.result.byteLength > 0)
+    fr.onerror = () => resolve(false)
+    fr.readAsArrayBuffer(probe)
+  } catch (e) { resolve(false) }
+})
+
+// 校验 IndexedDB 中持久化的 Blob 是否仍可用。
+// iOS Safari 等浏览器在页面重开后可能已释放文件句柄，此时 blob.size 仍显示原值，
+// 但 slice 出来是空数据，上传必然被服务端以 "Required part 'file' is not present" 拒绝（HTTP 400），
+// 表现为卡片永久停在「上传中 0%」。
+const isBlobUsable = async (blob) => {
+  if (!blob || typeof blob.slice !== 'function') return false
+  if (!(blob.size > 0)) return false
+  return await readBlobProbe(blob)
+}
+
 // 进入页面时恢复上次未完成的上传（刷新/退出导致中断的文件自动续传）
 const resumePendingUploads = async () => {
   let records = []
   try { records = await listPending() } catch (e) { return }
   records.sort((a, b) => new Date(a.createTime) - new Date(b.createTime))
   if (!records.length) return
-  toast.info(`检测到 ${records.length} 个未完成的上传，正在自动续传...`)
-  records.forEach((rec, idx) => {
+
+  // 先剔除 Blob 已失效的僵尸任务：它们永远传不上去，留着会导致每次进页面都重复提示"自动续传"
+  const usable = []
+  let dropped = 0
+  for (const rec of records) {
+    if (await isBlobUsable(rec.blob)) {
+      usable.push(rec)
+    } else {
+      try { await removePending(rec.qid) } catch (e) { /* 存储不可用时忽略 */ }
+      dropped++
+    }
+  }
+  if (dropped) {
+    toast.error(`${dropped} 个未完成的上传已失效（浏览器已释放本地文件），已自动清除，请重新选择文件上传`)
+  }
+  if (!usable.length) return
+
+  toast.info(`检测到 ${usable.length} 个未完成的上传，正在自动续传...`)
+  usable.forEach((rec, idx) => {
     const temp = makeTempItem(rec, idx + 1000)
     albumItems.value = [temp, ...albumItems.value]
     enqueueUploadTask(rec, temp)
@@ -787,6 +841,20 @@ const closePreview = () => {
 }
 
 const deleteAlbumItem = async (item) => {
+  // 本地临时卡片（id 为负数）：服务器上并无对应记录，调删除接口必然失败，
+  // 必须直接取消上传并从浏览器 IndexedDB 队列中移除，否则每次进页面都会"自动续传"复活
+  if (item.id < 0) {
+    const ok = await confirm('移除', `「${item.name || '该文件'}」尚未上传成功，移除后将不再自动续传，确定移除吗？`)
+    if (!ok) return
+    item.cancelled = true
+    item.uploading = false
+    item.failed = false
+    if (item.qid) { try { await removePending(item.qid) } catch (e) { /* 存储不可用时忽略 */ } }
+    if (item.url) URL.revokeObjectURL(item.url)
+    albumItems.value = albumItems.value.filter(i => !(i.type === item.type && i.id === item.id))
+    toast.success('已移除，不会再自动续传')
+    return
+  }
   const ok = await confirm('删除', `确定要删除该${item.type === 'image' ? '图片' : '视频'}吗？`)
   if (!ok) return
   try {
@@ -871,14 +939,46 @@ const downloadData = async (type) => {
   } catch (e) { toast.error('下载失败') }
 }
 
+// 正在发送的导出类型，用于按钮 loading 与防重复点击
+const sendingEmail = ref('')
+
 const sendEmail = async (type) => {
+  if (sendingEmail.value) {
+    toast.warning('上一封邮件还在发送中，请稍候')
+    return
+  }
+  // 收件邮箱：优先用「邮件配置」里已保存的地址，没有则让用户临时填一个
+  let toEmail = (emailConfig.toEmail || '').trim()
+  if (!toEmail) {
+    toEmail = (prompt('请输入收件邮箱', '') || '').trim()
+    if (!toEmail) {
+      toast.warning('未填写收件邮箱，已取消发送')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
+      toast.error('邮箱格式不正确')
+      return
+    }
+  }
+  sendingEmail.value = type
+  toast.info('正在发送，附件生成与邮件投递需要几秒…')
   try {
-    if (type === 'users') await exportApi.sendUsersEmail()
-    else if (type === 'books') await exportApi.sendBooksEmail()
-    else if (type === 'logs') await exportApi.sendLogsEmail()
-    else await exportApi.sendRunLogsEmail()
-    toast.success('已发送到邮箱')
-  } catch (e) { toast.error('发送失败') }
+    const res = type === 'users' ? await exportApi.sendUsersEmail(toEmail)
+              : type === 'books' ? await exportApi.sendBooksEmail(toEmail)
+              : type === 'logs'  ? await exportApi.sendLogsEmail(toEmail)
+              :                    await exportApi.sendRunLogsEmail(toEmail)
+    // 后端用 ResponseEntity 返回 {code,msg}，业务失败时 HTTP 状态码非 2xx 会走 catch
+    if (res && res.code && res.code !== 200) {
+      toast.error(res.msg || '发送失败')
+      return
+    }
+    toast.success(res?.msg || `已发送到 ${toEmail}`)
+  } catch (e) {
+    const msg = e?.response?.data?.msg || e?.message || '发送失败'
+    toast.error(msg)
+  } finally {
+    sendingEmail.value = ''
+  }
 }
 
 onMounted(() => {

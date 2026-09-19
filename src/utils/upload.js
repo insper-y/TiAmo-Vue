@@ -100,10 +100,11 @@ export const listPending = async () => {
 // —— 分片并行上传：大文件切 2MB 小块、4 路并发，聚合隧道带宽；刷新后凭 qid 查进度只补差异 ——
 import { chunkApi } from '../api'
 
-// 512KB/片 + 4路并发：Cloudflare 对>100s的源站请求会掐断，小分片保证每请求快速完成，
-// 单片失败只重传一片，刷新后也能按片续传
-const CHUNK = 512 * 1024
-const CHUNK_CONC = 4
+// 1MB/片 + 6路并发：Cloudflare 对 >100s 的源站请求会掐断，分片需保证单请求快速完成。
+// 原 512KB/4 路在百兆级文件上会产生上百次请求往返，握手与调度开销占比过高；
+// 提到 1MB/6 路后请求数减半、并发提升，同时单片在弱网下仍能在数秒内传完。
+const CHUNK = 1024 * 1024
+const CHUNK_CONC = 6
 
 export async function uploadInChunks(record, onProgress) {
   const blob = record.blob

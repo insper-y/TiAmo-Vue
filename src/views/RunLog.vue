@@ -4,7 +4,7 @@
 
     <div class="page-title-bar">
       <h1>运行日志</h1>
-      <button class="btn btn-sm" @click="loadAll">刷新</button>
+      <button class="btn btn-sm" @click="loadCurrent">刷新</button>
     </div>
 
     <!-- 服务器状态 -->
@@ -13,7 +13,7 @@
         <div class="status-icon">🖥️</div>
         <div class="status-info">
           <span class="status-label">CPU使用率</span>
-          <span class="status-value">{{ serverStatus.cpuUsage || 0 }}%</span>
+          <span class="status-value">{{ Math.round(serverStatus.cpuUsage || 0) }}%</span>
         </div>
         <div class="status-bar">
           <div class="status-fill" :style="{width: (serverStatus.cpuUsage || 0) + '%', background: getColor(serverStatus.cpuUsage)}"></div>
@@ -23,7 +23,7 @@
         <div class="status-icon">💾</div>
         <div class="status-info">
           <span class="status-label">内存占用</span>
-          <span class="status-value">{{ serverStatus.memoryUsage || 0 }}%</span>
+          <span class="status-value">{{ Math.round(serverStatus.memoryUsage || 0) }}%</span>
         </div>
         <div class="status-bar">
           <div class="status-fill" :style="{width: (serverStatus.memoryUsage || 0) + '%', background: getColor(serverStatus.memoryUsage)}"></div>
@@ -33,7 +33,7 @@
         <div class="status-icon">☕</div>
         <div class="status-info">
           <span class="status-label">JVM内存</span>
-          <span class="status-value">{{ serverStatus.jvmUsage || 0 }}%</span>
+          <span class="status-value">{{ Math.round(serverStatus.jvmUsage || 0) }}%</span>
         </div>
         <div class="status-bar">
           <div class="status-fill" :style="{width: (serverStatus.jvmUsage || 0) + '%', background: getColor(serverStatus.jvmUsage)}"></div>
@@ -43,110 +43,69 @@
         <div class="status-icon">💿</div>
         <div class="status-info">
           <span class="status-label">磁盘使用</span>
-          <span class="status-value">{{ serverStatus.diskUsage || 0 }}%</span>
+          <span class="status-value">{{ Math.round(serverStatus.diskUsage || 0) }}%</span>
         </div>
         <div class="status-bar">
           <div class="status-fill" :style="{width: (serverStatus.diskUsage || 0) + '%', background: getColor(serverStatus.diskUsage)}"></div>
         </div>
       </div>
-      <div class="status-card">
-        <div class="status-icon">🧵</div>
-        <div class="status-info">
-          <span class="status-label">线程数</span>
-          <span class="status-value">{{ serverStatus.threadCount || 0 }}</span>
-        </div>
-      </div>
-      <div class="status-card">
-        <div class="status-icon">⏱️</div>
-        <div class="status-info">
-          <span class="status-label">运行时长</span>
-          <span class="status-value">{{ formatUptime(serverStatus.uptime) }}</span>
-        </div>
-      </div>
+    </div>
+
+    <!-- 两个模块切换 -->
+    <div class="module-tabs">
+      <button class="module-tab" :class="{active: module === 'springboot'}" @click="switchModule('springboot')">
+        <span class="module-icon">☕</span>
+        <span class="module-name">SpringBoot 运行日志</span>
+        <span class="module-meta" v-if="fileInfo.springboot">{{ fileInfo.springboot.sizeMB }} MB</span>
+      </button>
+      <button class="module-tab" :class="{active: module === 'nginx'}" @click="switchModule('nginx')">
+        <span class="module-icon">🌐</span>
+        <span class="module-name">Nginx 运行日志</span>
+        <span class="module-meta" v-if="nginxSize">{{ nginxSize }} MB</span>
+      </button>
+    </div>
+
+    <!-- Nginx 模块下的子日志切换 -->
+    <div v-if="module === 'nginx'" class="sub-tabs">
+      <button class="sub-tab" :class="{active: nginxType === 'access'}" @click="switchNginxType('access')">访问日志</button>
+      <button class="sub-tab" :class="{active: nginxType === 'error'}" @click="switchNginxType('error')">错误日志</button>
     </div>
 
     <div class="action-toolbar">
-      <button class="btn btn-sm" :class="{active: autoRefresh}" @click="toggleAutoRefresh">
-        {{ autoRefresh ? '🔄 自动刷新' : '⏸ 自动刷新' }}
-      </button>
-      <select class="select" v-model="levelFilter" @change="loadLogs" style="width:auto;min-height:34px;padding:6px 10px;font-size:12px;">
-        <option value="">全部级别</option>
-        <option value="INFO">INFO</option>
-        <option value="WARN">WARN</option>
-        <option value="ERROR">ERROR</option>
+      <select class="select" v-model.number="lines" @change="loadCurrent" style="width:auto;min-height:34px;padding:6px 10px;font-size:12px;">
+        <option :value="100">最近 100 行</option>
+        <option :value="200">最近 200 行</option>
+        <option :value="500">最近 500 行</option>
+        <option :value="1000">最近 1000 行</option>
+        <option :value="2000">最近 2000 行</option>
       </select>
-      <button class="btn btn-sm btn-danger" @click="clearAll">清空所有</button>
+      <input v-model="keyword" class="input" placeholder="关键字过滤，如 ERROR" @keyup.enter="loadCurrent"
+             style="flex:1;min-width:120px;height:34px;padding:6px 10px;font-size:12px;" />
+      <button class="btn btn-sm" @click="loadCurrent">查询</button>
+      <button class="btn btn-sm" :class="{active: autoRefresh}" @click="toggleAutoRefresh">
+        {{ autoRefresh ? '🔄 自动' : '⏸ 自动' }}
+      </button>
+      <button class="btn btn-sm btn-danger" @click="clearCurrentFile">清空</button>
     </div>
 
-    <div class="stats-bar">
-      <div class="stat-item">
-        <span class="stat-dot" style="background:#3b82f6;"></span>
-        <span>INFO</span>
-        <strong>{{ stats.info || 0 }}</strong>
-      </div>
-      <div class="stat-item">
-        <span class="stat-dot" style="background:#f59e0b;"></span>
-        <span>WARN</span>
-        <strong>{{ stats.warn || 0 }}</strong>
-      </div>
-      <div class="stat-item">
-        <span class="stat-dot" style="background:#ef4444;"></span>
-        <span>ERROR</span>
-        <strong>{{ stats.error || 0 }}</strong>
-      </div>
+    <div class="log-meta" v-if="meta.path">
+      <span>文件：{{ meta.path }}</span>
+      <span>返回 {{ meta.returnedLines || 0 }} 行</span>
+      <span>读取于 {{ meta.readAt || '-' }}</span>
     </div>
 
-    <div class="mobile-card-list">
+    <div class="log-viewer">
       <div v-if="loading" class="loading-state">
         <div class="loading-spinner"></div>
-        <p>加载中...</p>
+        <p>日志读取中...</p>
       </div>
-      <div v-else-if="logs.length === 0" class="empty-state">暂无运行日志</div>
-      <div v-for="log in filteredLogs" :key="log.id" class="mobile-card log-card" @click="showDetail(log)">
-        <div class="mobile-card-header">
-          <div class="mobile-card-title" style="font-family:monospace;font-size:12px;">{{ log.className || log.loggerName }}</div>
-          <span class="mobile-card-badge" :class="getLevelClass(log.level)">{{ log.level }}</span>
-        </div>
-        <div class="mobile-card-body">
-          <div class="log-message">{{ log.message || log.content }}</div>
-          <div class="mobile-card-row" style="margin-top:8px;">
-            <span class="label">方法</span>
-            <span class="value">{{ log.methodName || '-' }}</span>
-          </div>
-          <div class="mobile-card-row">
-            <span class="label">耗时</span>
-            <span class="value">{{ log.duration != null ? log.duration + 'ms' : '-' }}</span>
-          </div>
-          <div class="mobile-card-row">
-            <span class="label">时间</span>
-            <span class="value">{{ log.createTime }}</span>
-          </div>
-        </div>
+      <div v-else-if="!logLines.length" class="empty-state">
+        {{ keyword ? '没有匹配「' + keyword + '」的日志' : '暂无日志内容' }}
       </div>
-    </div>
-
-    <Pagination :total="total" v-model:currentPage="currentPage" v-model:pageSize="pageSize" @change="loadLogs" />
-
-    <!-- 详情弹窗 -->
-    <div v-if="detailLog" class="modal-overlay" @click.self="detailLog = null">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>运行日志详情</h3>
-          <button class="modal-close" @click="detailLog = null">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="detail-row"><span class="detail-label">级别</span><span class="detail-value" :class="getLevelClass(detailLog.level)">{{ detailLog.level }}</span></div>
-          <div class="detail-row"><span class="detail-label">类名</span><span class="detail-value" style="font-family:monospace;font-size:11px;">{{ detailLog.className }}</span></div>
-          <div class="detail-row"><span class="detail-label">方法</span><span class="detail-value">{{ detailLog.methodName }}</span></div>
-          <div class="detail-row"><span class="detail-label">耗时</span><span class="detail-value">{{ detailLog.duration != null ? detailLog.duration + 'ms' : '-' }}</span></div>
-          <div class="detail-row"><span class="detail-label">时间</span><span class="detail-value">{{ detailLog.createTime }}</span></div>
-          <div class="detail-row"><span class="detail-label">消息</span><span class="detail-value" style="font-family:monospace;font-size:11px;white-space:pre-wrap;">{{ detailLog.message }}</span></div>
-          <div class="detail-row" v-if="detailLog.params"><span class="detail-label">入参</span><span class="detail-value detail-json">{{ detailLog.params }}</span></div>
-          <div class="detail-row" v-if="detailLog.result"><span class="detail-label">返回值</span><span class="detail-value detail-json">{{ detailLog.result }}</span></div>
-          <div class="detail-row" v-if="detailLog.exception"><span class="detail-label">异常</span><span class="detail-value detail-json" style="color:#dc2626;">{{ detailLog.exception }}</span></div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-primary btn-block" @click="detailLog = null">关闭</button>
+      <div v-else class="log-lines">
+        <div v-for="(line, idx) in logLines" :key="idx" class="log-line" :class="lineClass(line)">
+          <span class="log-no">{{ idx + 1 }}</span>
+          <span class="log-text">{{ line }}</span>
         </div>
       </div>
     </div>
@@ -158,7 +117,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import Pagination from '../components/Pagination.vue'
 import AppHeader from '../components/AppHeader.vue'
 import BottomNav from '../components/BottomNav.vue'
 import { runLogApi, serverApi } from '../api'
@@ -166,7 +124,7 @@ import { toast, confirm } from '../utils'
 
 const router = useRouter()
 const route = useRoute()
-// 返回：有历史记录则回退，直接进入时回到控制台
+
 const goBack = () => {
   if (window.history.state && window.history.state.back) router.back()
   else router.push('/dashboard')
@@ -181,49 +139,45 @@ const onNav = (key) => {
   else if (key === 'runlog' && route.path !== '/run-log') router.push('/run-log')
 }
 
+// 模块：springboot | nginx
+const module = ref('springboot')
+const nginxType = ref('access')
+const lines = ref(200)
+const keyword = ref('')
 const loading = ref(false)
-const logs = ref([])
-const total = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(20)
-const autoRefresh = ref(true)
-const levelFilter = ref('')
-const detailLog = ref(null)
+const autoRefresh = ref(false)
+const logLines = ref([])
+const meta = reactive({ path: '', returnedLines: 0, readAt: '', sizeMB: '0' })
+const fileInfo = reactive({ springboot: null, 'nginx-access': null, 'nginx-error': null })
 let refreshTimer = null
 
-const serverStatus = reactive({
-  cpuUsage: 0, memoryUsage: 0, jvmUsage: 0,
-  diskUsage: 0, threadCount: 0, uptime: 0
+const serverStatus = reactive({ cpuUsage: 0, memoryUsage: 0, jvmUsage: 0, diskUsage: 0 })
+
+const nginxSize = computed(() => {
+  const f = nginxType.value === 'error' ? fileInfo['nginx-error'] : fileInfo['nginx-access']
+  return f ? f.sizeMB : ''
 })
 
-const stats = reactive({ info: 0, warn: 0, error: 0 })
-
-const filteredLogs = computed(() => {
-  if (!levelFilter.value) return logs.value
-  return logs.value.filter(l => l.level === levelFilter.value)
+// 当前模块对应的后端文件标识
+const currentFileKey = computed(() => {
+  if (module.value === 'springboot') return 'springboot'
+  return nginxType.value === 'error' ? 'nginx-error' : 'nginx-access'
 })
 
 const getColor = (val) => {
-  if (val > 80) return '#ef4444'
-  if (val > 60) return '#f59e0b'
+  const v = val || 0
+  if (v > 80) return '#ef4444'
+  if (v > 60) return '#f59e0b'
   return '#10b981'
 }
 
-const getLevelClass = (level) => {
-  if (level === 'ERROR') return 'danger'
-  if (level === 'WARN') return 'warning'
-  return 'info'
-}
-
-const formatUptime = (ms) => {
-  if (!ms) return '-'
-  const seconds = Math.floor(ms / 1000)
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.floor((seconds % 86400) / 3600)
-  const mins = Math.floor((seconds % 3600) / 60)
-  if (days > 0) return `${days}天${hours}小时`
-  if (hours > 0) return `${hours}小时${mins}分`
-  return `${mins}分钟`
+// 按日志内容着色，便于快速定位错误
+const lineClass = (line) => {
+  const l = line || ''
+  if (/\bERROR\b|Exception|\[error\]|CRITICAL|Failed|失败/i.test(l)) return 'line-error'
+  if (/\bWARN\b|\[warn\]/i.test(l)) return 'line-warn'
+  if (/ (40[0-9]|41[0-9]|50[0-9]) /.test(l)) return 'line-error'
+  return ''
 }
 
 const loadServerStatus = async () => {
@@ -235,78 +189,98 @@ const loadServerStatus = async () => {
       serverStatus.memoryUsage = d.memory?.usagePercent ?? d.memoryUsage ?? 0
       serverStatus.jvmUsage = d.jvm?.usagePercent ?? d.jvmUsage ?? 0
       serverStatus.diskUsage = d.disk?.usagePercent ?? d.diskUsage ?? 0
-      serverStatus.threadCount = d.threads?.current ?? d.threadCount ?? 0
-      serverStatus.uptime = d.runtime?.uptimeMs ?? d.runtime?.uptime ?? d.uptime ?? 0
     }
-  } catch (e) {}
+  } catch (e) { /* 状态获取失败不影响日志查看 */ }
 }
 
-const loadLogs = async () => {
+const loadFiles = async () => {
+  try {
+    const res = await runLogApi.files()
+    if (res.code === 200 && Array.isArray(res.data)) {
+      res.data.forEach(f => { fileInfo[f.module] = f })
+    }
+  } catch (e) { /* 忽略 */ }
+}
+
+const loadCurrent = async () => {
   loading.value = true
   try {
-    const res = await runLogApi.list({
-      page: currentPage.value,
-      size: pageSize.value
-    })
-    if (res.code === 200) {
-      logs.value = res.data?.records || res.data?.list || res.data || []
-      total.value = res.data?.total || logs.value.length
+    const params = { lines: lines.value }
+    if (keyword.value.trim()) params.keyword = keyword.value.trim()
+    const res = module.value === 'springboot'
+      ? await runLogApi.springboot(params)
+      : await runLogApi.nginx({ ...params, type: nginxType.value })
+
+    if (res.code === 200 && res.data) {
+      logLines.value = res.data.lines || []
+      meta.path = res.data.path || ''
+      meta.returnedLines = res.data.returnedLines || 0
+      meta.readAt = res.data.readAt || ''
+      meta.sizeMB = res.data.sizeMB || '0'
+      // 倒序展示：最新日志在最上面
+      logLines.value = [...logLines.value].reverse()
+    } else {
+      logLines.value = []
+      toast.error(res.msg || '日志读取失败')
     }
   } catch (e) {
-    toast.error('加载运行日志失败')
+    logLines.value = []
+    const msg = e?.response?.data?.msg || e?.message || '日志读取失败'
+    toast.error(msg)
   } finally {
     loading.value = false
   }
 }
 
-const loadStats = async () => {
-  try {
-    const res = await runLogApi.stats()
-    if (res.code === 200 && res.data) {
-      stats.info = res.data.info || 0
-      stats.warn = res.data.warn || 0
-      stats.error = res.data.error || 0
-    }
-  } catch (e) {}
+const switchModule = (m) => {
+  if (module.value === m) return
+  module.value = m
+  keyword.value = ''
+  loadCurrent()
 }
 
-const loadAll = () => {
-  loadServerStatus()
-  loadLogs()
-  loadStats()
+const switchNginxType = (t) => {
+  if (nginxType.value === t) return
+  nginxType.value = t
+  loadCurrent()
 }
 
 const toggleAutoRefresh = () => {
   autoRefresh.value = !autoRefresh.value
   if (autoRefresh.value) {
-    refreshTimer = setInterval(loadAll, 10000)
+    refreshTimer = setInterval(() => { loadCurrent(); loadServerStatus() }, 10000)
     toast.info('已开启自动刷新（10秒）')
   } else {
     clearInterval(refreshTimer)
+    refreshTimer = null
     toast.info('已关闭自动刷新')
   }
 }
 
-const clearAll = async () => {
-  const ok = await confirm('清空日志', '确定要清空所有运行日志吗？')
+const clearCurrentFile = async () => {
+  const label = module.value === 'springboot'
+    ? 'SpringBoot 运行日志'
+    : `Nginx ${nginxType.value === 'error' ? '错误' : '访问'}日志`
+  const ok = await confirm('清空日志', `确定要清空「${label}」文件的全部内容吗？此操作不可恢复。`)
   if (!ok) return
   try {
-    await runLogApi.clearAll()
-    toast.success('已清空')
-    loadLogs()
-    loadStats()
+    const res = await runLogApi.clearFile(currentFileKey.value)
+    if (res.code === 200) {
+      toast.success('已清空')
+      logLines.value = []
+      loadFiles()
+    } else {
+      toast.error(res.msg || '清空失败')
+    }
   } catch (e) {
-    toast.error('清空失败')
+    toast.error(e?.response?.data?.msg || '清空失败')
   }
 }
 
-const showDetail = (log) => {
-  detailLog.value = log
-}
-
 onMounted(() => {
-  loadAll()
-  refreshTimer = setInterval(loadAll, 10000)
+  loadServerStatus()
+  loadFiles()
+  loadCurrent()
 })
 
 onUnmounted(() => {
@@ -315,18 +289,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.page-title-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 16px 10px;
-}
-.page-title-bar h1 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0;
-}
 @media (min-width: 769px) {
   .page-title-bar { padding: 16px 24px 12px; }
   .runlog-page { padding-bottom: 0; }
@@ -338,13 +300,17 @@ onUnmounted(() => {
   overflow-x: hidden;
   max-width: 100vw;
 }
-.mobile-card-title {
-  word-break: break-all;
-  overflow-wrap: anywhere;
+.page-title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 10px;
 }
-.log-card .log-message {
-  word-break: break-all;
-  overflow-wrap: anywhere;
+.page-title-bar h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
 }
 .server-status {
   display: grid;
@@ -361,123 +327,135 @@ onUnmounted(() => {
   gap: 6px;
 }
 .status-icon { font-size: 20px; }
-.status-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+.status-info { display: flex; justify-content: space-between; align-items: center; }
 .status-label { font-size: 11px; color: #64748b; }
 .status-value { font-size: 16px; font-weight: 700; color: #1e293b; }
-.status-bar {
-  height: 6px;
-  background: #f1f5f9;
-  border-radius: 3px;
-  overflow: hidden;
+.status-bar { height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; }
+.status-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+/* 模块切换 */
+.module-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 0 16px 10px;
 }
-.status-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.3s;
-}
-.log-card .log-message {
-  font-size: 12px;
-  color: #334155;
-  line-height: 1.5;
-  font-family: monospace;
-  background: #f8fafc;
-  padding: 8px;
-  border-radius: 6px;
-  max-height: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
-.detail-row {
+.module-tab {
+  background: white;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 12px 10px;
   display: flex;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f1f5f9;
-  font-size: 13px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
 }
-.detail-label {
-  color: #64748b;
-  min-width: 60px;
-  flex-shrink: 0;
+.module-tab.active {
+  border-color: #6366f1;
+  background: #eef2ff;
 }
-.detail-value {
-  color: #1e293b;
+.module-icon { font-size: 20px; }
+.module-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+.module-tab.active .module-name { color: #4f46e5; }
+.module-meta { font-size: 11px; color: #94a3b8; }
+
+.sub-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 10px;
+}
+.sub-tab {
   flex: 1;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+}
+.sub-tab.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: white;
+  font-weight: 600;
+}
+
+.action-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 0 16px 10px;
+}
+.action-toolbar .btn.active {
+  background: #6366f1;
+  color: white;
+  border-color: #6366f1;
+}
+
+.log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 16px 8px;
+  font-size: 11px;
+  color: #94a3b8;
   word-break: break-all;
 }
-.detail-value.danger { color: #dc2626; font-weight: 600; }
-.detail-value.warning { color: #d97706; font-weight: 600; }
-.detail-value.info { color: #2563eb; font-weight: 600; }
-.detail-json {
-  font-family: monospace;
+
+.log-viewer {
+  margin: 0 16px;
+  background: #0f172a;
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 200px;
+}
+.log-lines {
+  max-height: 60vh;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0;
+}
+.log-line {
+  display: flex;
+  gap: 8px;
+  padding: 2px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
-  background: #f8fafc;
-  padding: 8px;
-  border-radius: 6px;
-  max-height: 150px;
-  overflow-y: auto;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+.log-no {
+  flex: 0 0 34px;
+  text-align: right;
+  color: #475569;
+  user-select: none;
+}
+.log-text {
   white-space: pre-wrap;
+  word-break: break-all;
+  flex: 1;
 }
-@media (max-width: 768px) {
-  .page-header {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px 16px;
-  }
-  .page-header h1 {
-    font-size: 18px;
-    flex: 1;
-    min-width: 0;
-  }
-  .action-toolbar {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 0 16px 12px;
-  }
-  .action-toolbar .select,
-  .action-toolbar .btn {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  .stats-bar {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 0 16px 12px;
-  }
-  .stat-item {
-    flex: 1 1 30%;
-    justify-content: center;
-  }
-  .server-status {
-    gap: 8px;
-    padding: 0 12px 12px;
-  }
-  .status-card {
-    padding: 10px;
-  }
-  .status-value { font-size: 14px; }
-  .modal {
-    width: calc(100% - 24px);
-    max-height: 85vh;
-    overflow-y: auto;
-  }
-  .modal-body { padding: 12px; }
-  .detail-row {
-    flex-direction: column;
-    gap: 2px;
-  }
-  .detail-label { min-width: 0; }
+.log-line.line-error { color: #fca5a5; background: rgba(239,68,68,0.10); }
+.log-line.line-warn { color: #fcd34d; background: rgba(245,158,11,0.08); }
+.loading-state, .empty-state {
+  padding: 40px 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
 }
-@media (max-width: 380px) {
-  .server-status { grid-template-columns: 1fr; }
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 10px;
+  border: 3px solid #334155;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
-@media (min-width: 769px) {
-  .server-status { grid-template-columns: repeat(3, 1fr); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

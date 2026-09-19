@@ -31,20 +31,21 @@
         <label>类型</label>
         <select class="select" v-model="filters.type" @change="loadLogs">
           <option value="">全部</option>
-          <option value="登录">登录</option>
-          <option value="查询">查询</option>
-          <option value="新增">新增</option>
-          <option value="修改">修改</option>
-          <option value="删除">删除</option>
-          <option value="导出">导出</option>
+          <option value="LOGIN">登录</option>
+          <option value="QUERY">查询</option>
+          <option value="CREATE">新增</option>
+          <option value="UPDATE">修改</option>
+          <option value="DELETE">删除</option>
+          <option value="EXPORT">导出</option>
+          <option value="OTHER">其他</option>
         </select>
       </div>
       <div class="filter-item">
         <label>状态</label>
         <select class="select" v-model="filters.status" @change="loadLogs">
           <option value="">全部</option>
-          <option value="成功">成功</option>
-          <option value="失败">失败</option>
+          <option value="SUCCESS">成功</option>
+          <option value="FAIL">失败</option>
         </select>
       </div>
       <div class="filter-item" style="flex:1;min-width:150px;">
@@ -170,15 +171,22 @@ const filters = reactive({
   operator: ''
 })
 
-const modules = ['认证管理', '用户管理', '商品管理', '回收站', '数据库管理', '数据导出', '邮件配置', '相册管理', '系统管理', '日志管理']
+// 与后端 @OperationLog(module=...) 中出现的模块名保持一致
+const modules = ['认证管理', '用户管理', '商品管理', '回收站', '数据库管理', '数据导出',
+                 '邮件配置', '系统配置', '相册管理', '图片管理', '视频管理',
+                 '日志管理', '操作日志', '运行日志', '系统设置']
 
 const loadLogs = async () => {
   loading.value = true
   try {
+    // 后端接收的字段是 operationType / username，不能直接把 filters 展开过去
     const res = await logApi.list({
       page: currentPage.value,
       size: pageSize.value,
-      ...filters
+      module: filters.module || undefined,
+      operationType: filters.type || undefined,
+      status: filters.status || undefined,
+      username: filters.operator || undefined
     })
     if (res.code === 200) {
       logs.value = res.data?.records || res.data?.list || res.data || []
@@ -197,7 +205,7 @@ const loadStats = async () => {
     if (res.code === 200 && res.data) {
       stats.total = res.data.total || 0
       stats.success = res.data.success || 0
-      stats.error = res.data.error || 0
+      stats.error = res.data.fail ?? res.data.error ?? 0
     }
   } catch (e) {}
 }
@@ -229,12 +237,17 @@ const clearAll = async () => {
   const ok = await confirm('清空日志', '确定要清空所有操作日志吗？此操作不可恢复！')
   if (!ok) return
   try {
-    await logApi.clearAll()
-    toast.success('已清空所有日志')
+    // 后端没有 clear-all 接口，用 clean(days=0) 表示「清理此刻之前的全部日志」
+    const res = await logApi.clean(0)
+    if (res && res.code && res.code !== 200) {
+      toast.error(res.msg || '清空失败')
+      return
+    }
+    toast.success(res?.msg || '已清空所有日志')
     loadLogs()
     loadStats()
   } catch (e) {
-    toast.error('清空失败')
+    toast.error(e?.response?.data?.msg || '清空失败')
   }
 }
 
