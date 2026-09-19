@@ -142,6 +142,12 @@ export const albumApi = {
   uploadVideo: (formData) => request.post('/api/videos/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+  uploadImageBatch: (formData) => request.post('/api/images/upload/batch', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  uploadVideoBatch: (formData) => request.post('/api/videos/upload/batch', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
   deleteImage: (id) => request.delete(`/api/images/${id}`),
   deleteVideo: (id) => request.delete(`/api/videos/${id}`),
   downloadImage: (id) => request.get(`/api/images/${id}/download`, { responseType: 'blob' })

@@ -3,6 +3,12 @@
     <!-- 顶部导航 -->
     <header class="top-header">
       <div class="header-left">
+        <button v-if="activeTab !== 'home'" class="head-back" @click="setTab('home')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <span>返回</span>
+        </button>
         <div class="logo">
           <span class="logo-icon">🚀</span>
           <span class="logo-text">Tiamo AI</span>
@@ -45,7 +51,7 @@
             v-for="func in quickFunctions"
             :key="func.key"
             class="function-item"
-            @click="activeTab = func.key"
+            @click="openFunction(func)"
           >
             <div class="function-icon" :style="{ background: func.bg }">{{ func.icon }}</div>
             <span class="function-name">{{ func.name }}</span>
@@ -237,12 +243,14 @@
         <div class="album-grid">
           <div v-if="filteredAlbum.length === 0" class="empty-state" style="grid-column:1/-1">相册为空</div>
           <div v-for="item in filteredAlbum" :key="item.type + item.id" class="album-item" @click="previewAlbum(item)">
-            <img v-if="item.type === 'image'" :src="item.thumb" loading="lazy" />
+            <img v-if="item.type === 'image'" :src="item.thumb" loading="lazy" @error="onThumbError(item)" />
             <div v-else class="video-thumb">
-              <img v-if="item.thumb" :src="item.thumb" loading="lazy" />
+              <img v-if="item.thumb" :src="item.thumb" loading="lazy" @error="onThumbError(item)" />
               <span v-else class="video-icon">🎬</span>
               <span class="play-icon">▶</span>
             </div>
+            <button class="album-del" title="删除" @click.stop="deleteAlbumItem(item)">×</button>
+            <span v-if="item.transcoding" class="album-transcoding">转码中</span>
             <span class="album-type">{{ item.type === 'image' ? '图片' : '视频' }}</span>
           </div>
         </div>
@@ -283,47 +291,36 @@
         </div>
       </div>
 
-      <!-- 操作日志入口 -->
-      <div v-if="activeTab === 'logs'" class="logs-entry">
-        <div class="entry-card" @click="$router.push('/logs')">
-          <div class="entry-icon">📋</div>
-          <div class="entry-info">
-            <h3>操作日志</h3>
-            <p>查看所有用户的操作记录</p>
-          </div>
-          <span class="entry-arrow">→</span>
-        </div>
-        <div class="entry-card" @click="$router.push('/run-log')">
-          <div class="entry-icon">⚙️</div>
-          <div class="entry-info">
-            <h3>运行日志</h3>
-            <p>查看系统运行状态和日志</p>
-          </div>
-          <span class="entry-arrow">→</span>
-        </div>
-      </div>
     </main>
 
     <!-- 底部导航（手机端） -->
     <nav class="bottom-nav">
-      <button class="nav-item" :class="{active: activeTab === 'home'}" @click="activeTab = 'home'">
+      <button class="nav-item" :class="{active: activeTab === 'home'}" @click="setTab('home')">
         <span class="nav-icon">🏠</span>
         <span class="nav-text">首页</span>
       </button>
-      <button class="nav-item nav-add" @click="activeTab = 'album'">
+      <button class="nav-item" :class="{active: activeTab === 'album'}" @click="setTab('album')">
+        <span class="nav-icon">🖼️</span>
+        <span class="nav-text">相册</span>
+      </button>
+      <button class="nav-item nav-add" @click="quickUpload">
         <span class="nav-icon">➕</span>
       </button>
-      <button class="nav-item" :class="{active: activeTab === 'logs'}" @click="activeTab = 'logs'">
+      <button class="nav-item" @click="goRoute('/logs')">
         <span class="nav-icon">📋</span>
-        <span class="nav-text">日志</span>
+        <span class="nav-text">操作日志</span>
+      </button>
+      <button class="nav-item" @click="goRoute('/run-log')">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-text">运行日志</span>
       </button>
     </nav>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import Pagination from '../components/Pagination.vue'
 import { auth, toast, confirm, formatTime } from '../utils'
 import {
@@ -332,9 +329,42 @@ import {
 } from '../api'
 
 const router = useRouter()
+const route = useRoute()
 const user = ref(auth.getUser())
 const isAdmin = computed(() => user.value?.role === 1)
-const activeTab = ref('home')
+
+// 页签与 URL 同步：刷新后停留在当前页面
+const validTabs = ['home', 'users', 'recycle', 'database', 'export', 'email', 'album', 'pending']
+const initTab = validTabs.includes(route.query.tab) ? route.query.tab : 'home'
+const activeTab = ref(initTab)
+
+const setTab = (key) => {
+  const tab = validTabs.includes(key) ? key : 'home'
+  activeTab.value = tab
+  const query = { ...route.query }
+  if (tab === 'home') delete query.tab
+  else query.tab = tab
+  router.replace({ query })
+  refreshTab(tab)
+}
+
+// 切换页签时刷新对应数据，保证内容最新
+const refreshTab = (tab) => {
+  if (tab === 'album') loadAlbum()
+  else if (tab === 'users' && isAdmin.value) loadUsers()
+  else if (tab === 'recycle') loadRecycle()
+  else if (tab === 'database' && isAdmin.value) loadTables()
+  else if (tab === 'email' && isAdmin.value) loadEmailConfig()
+  else if (tab === 'pending' && isAdmin.value) loadPending()
+}
+
+const goRoute = (path) => router.push(path)
+
+// 浏览器前进/后退时同步页签
+watch(() => route.query.tab, (t) => {
+  const tab = validTabs.includes(t) ? t : 'home'
+  if (tab !== activeTab.value) activeTab.value = tab
+})
 
 // 标签配置
 const allTabs = [
@@ -345,8 +375,7 @@ const allTabs = [
   { key: 'export', name: '数据导出', icon: '📤', admin: false },
   { key: 'email', name: '邮件配置', icon: '📧', admin: true },
   { key: 'album', name: '相册', icon: '🖼️', admin: false },
-  { key: 'pending', name: '待审批', icon: '⏳', admin: true, badge: 0 },
-  { key: 'logs', name: '日志', icon: '📋', admin: false }
+  { key: 'pending', name: '待审批', icon: '⏳', admin: true, badge: 0 }
 ]
 
 const visibleTabs = computed(() => allTabs.filter(t => !t.admin || isAdmin.value))
@@ -355,8 +384,14 @@ const quickFunctions = computed(() => [
   { key: 'recycle', name: '回收站', icon: '🗑️', bg: 'linear-gradient(135deg,#f59e0b,#f97316)' },
   { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' },
   { key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' },
-  { key: 'logs', name: '操作日志', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' }
+  { key: 'oplog', name: '操作日志', route: '/logs', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+  { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' }
 ])
+
+const openFunction = (func) => {
+  if (func.route) router.push(func.route)
+  else setTab(func.key)
+}
 
 // 首页
 const greeting = computed(() => {
@@ -396,12 +431,20 @@ const albumTab = ref('all')
 const albumItems = ref([])
 const previewImg = ref('')
 const previewVideo = ref('')
+const previewItem = ref(null)
 const imageInput = ref(null)
 const videoInput = ref(null)
 const filteredAlbum = computed(() => {
   if (albumTab.value === 'all') return albumItems.value
   return albumItems.value.filter(i => i.type === albumTab.value)
 })
+
+// 后端返回的是相对路径，需拼接 nginx 静态资源前缀才能直接访问
+const resolveUrl = (p, base) => {
+  if (!p) return ''
+  if (/^https?:\/\//.test(p) || p.startsWith('/')) return p
+  return `${base}/${p}`
+}
 
 
 // 待审批
@@ -555,6 +598,26 @@ const saveEmailConfig = async () => {
   } catch (e) { toast.error('保存失败') }
 }
 
+// 把后端实体转成相册条目
+const toImageItem = (i) => ({
+  type: 'image',
+  id: i.id,
+  name: i.originalName,
+  createTime: i.createTime,
+  thumb: resolveUrl(i.thumbnailPath || i.filePath || i.fileName, '/uploads/images'),
+  full: resolveUrl(i.filePath || i.fileName, '/uploads/images'),
+  transcoding: false
+})
+const toVideoItem = (v) => ({
+  type: 'video',
+  id: v.id,
+  name: v.originalName,
+  createTime: v.createTime,
+  thumb: resolveUrl(v.coverPath, '/uploads/videos'),
+  playUrl: resolveUrl(v.filePath || v.fileName, '/uploads/videos'),
+  transcoding: v.status === 0
+})
+
 const loadAlbum = async () => {
   try {
     const [imgRes, vidRes] = await Promise.all([
@@ -562,62 +625,107 @@ const loadAlbum = async () => {
       albumApi.videos({ page: 1, size: 100 })
     ])
     const items = []
-    ;(imgRes.data?.records || imgRes.data || []).forEach(i => {
-      items.push({ type: 'image', id: i.id, thumb: i.thumbnailPath || i.filePath || `/uploads/images/${i.fileName}`, name: i.originalName })
-    })
-    ;(vidRes.data?.records || vidRes.data || []).forEach(v => {
-      items.push({ type: 'video', id: v.id, thumb: v.coverPath || '', name: v.originalName, playUrl: v.filePath || (v.playUrl ? `/uploads/videos/${v.playUrl}` : '') })
-    })
-    items.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
+    ;(imgRes.data?.records || imgRes.data || []).forEach(i => items.push(toImageItem(i)))
+    ;(vidRes.data?.records || vidRes.data || []).forEach(v => items.push(toVideoItem(v)))
+    items.sort((a, b) => new Date(b.createTime || 0) - new Date(a.createTime || 0))
     albumItems.value = items
   } catch (e) { toast.error('加载相册失败') }
 }
 
-const triggerUpload = (type) => {
+const triggerUpload = async (type) => {
+  setTab('album')
+  await nextTick()
   if (type === 'image') imageInput.value?.click()
   else videoInput.value?.click()
 }
 
+// 底部导航“+”：快捷进入相册并选择图片上传
+const quickUpload = () => { triggerUpload('image') }
+
+// 上传成功后新条目去重合并，保证立刻显示
+const mergeUploadItems = (newItems) => {
+  const map = new Map(albumItems.value.map(it => [it.type + it.id, it]))
+  newItems.forEach(it => map.set(it.type + it.id, it))
+  albumItems.value = Array.from(map.values())
+    .sort((a, b) => new Date(b.createTime || 0) - new Date(a.createTime || 0))
+}
+
 const handleUpload = async (type, e) => {
-  const files = e.target.files
+  const files = Array.from(e.target.files || [])
   if (!files.length) return
   const formData = new FormData()
-  for (let i = 0; i < files.length; i++) formData.append('file', files[i])
+  files.forEach(f => formData.append(files.length > 1 ? 'files' : 'file', f))
   try {
-    toast.info('上传中...')
+    toast.info(`上传中（${files.length}个文件）...`)
     let res
-    if (type === 'image') res = await albumApi.uploadImage(formData)
-    else res = await albumApi.uploadVideo(formData)
-    const data = res?.data?.data || res?.data
-    if (data) {
-      if (type === 'image') {
-        albumItems.value.unshift({ type: 'image', id: data.id, thumb: data.thumbnailPath || data.filePath || `/uploads/images/${data.fileName}`, name: data.originalName })
-      } else {
-        albumItems.value.unshift({ type: 'video', id: data.id, thumb: data.coverPath || '', name: data.originalName, playUrl: data.filePath || (data.playUrl ? `/uploads/videos/${data.playUrl}` : '') })
-      }
+    if (files.length > 1) {
+      res = type === 'image' ? await albumApi.uploadImageBatch(formData)
+                             : await albumApi.uploadVideoBatch(formData)
+      const list = res?.data || []
+      const okList = list.filter(r => r.success)
+      if (!okList.length) throw new Error(res?.message || '上传失败')
+      mergeUploadItems(okList.map(r => type === 'image' ? toImageItem(r.data) : toVideoItem(r.data)))
+      if (okList.length < files.length) toast.warning(`成功${okList.length}个，失败${files.length - okList.length}个`)
+      else toast.success('上传成功')
+    } else {
+      res = type === 'image' ? await albumApi.uploadImage(formData)
+                             : await albumApi.uploadVideo(formData)
+      const map = res?.data
+      const entity = map?.data
+      if (!map || map.success === false) throw new Error(map?.message || '上传失败')
+      if (entity) mergeUploadItems([type === 'image' ? toImageItem(entity) : toVideoItem(entity)])
+      toast.success('上传成功')
     }
-    toast.success('上传成功')
-    loadAlbum()
-  } catch (e) { toast.error('上传失败') }
+    // 视频需后端转码/生成封面，稍后再拉取一次以获得封面与压缩版地址
+    setTimeout(loadAlbum, type === 'video' ? 6000 : 1500)
+  } catch (err) {
+    toast.error(err?.message || '上传失败')
+  }
   e.target.value = ''
 }
 
+const onThumbError = (item) => {
+  // 缩略图加载失败时回退：图片退回原图地址，视频退回默认图标
+  if (item.type === 'image' && item.full && item.thumb !== item.full) {
+    item.thumb = item.full
+  } else if (item.type === 'video' && item.thumb) {
+    item.thumb = ''
+  }
+}
+
 const previewAlbum = (item) => {
+  previewItem.value = item
   if (item.type === 'image') {
-    previewImg.value = item.thumb
+    previewImg.value = item.full || item.thumb
   } else {
     previewVideo.value = item.playUrl || item.thumb
   }
 }
+
+const closePreview = () => {
+  previewImg.value = ''
+  previewVideo.value = ''
+  previewItem.value = null
+}
+
 const deleteAlbumItem = async (item) => {
   const ok = await confirm('删除', `确定要删除该${item.type === 'image' ? '图片' : '视频'}吗？`)
   if (!ok) return
   try {
-    if (item.type === 'image') await albumApi.deleteImage(item.id)
-    else await albumApi.deleteVideo(item.id)
+    const res = item.type === 'image' ? await albumApi.deleteImage(item.id)
+                                      : await albumApi.deleteVideo(item.id)
+    if (res && res.code !== 200) throw new Error(res.message || '删除失败')
+    albumItems.value = albumItems.value.filter(i => !(i.type === item.type && i.id === item.id))
     toast.success('删除成功')
     loadAlbum()
-  } catch (e) { toast.error('删除失败') }
+  } catch (e) { toast.error(e?.message || '删除失败') }
+}
+
+const deleteFromPreview = async () => {
+  const item = previewItem.value
+  if (!item) return
+  await deleteAlbumItem(item)
+  closePreview()
 }
 const loadPending = async () => {
   try {
@@ -704,7 +812,8 @@ onMounted(() => {
     loadPending()
   }
   loadAlbum()
-  loadMyApprovals()
+  // 刷新后若停留在非首页页签，补拉该页签数据
+  if (activeTab.value !== 'home') refreshTab(activeTab.value)
 })
 </script>
 
@@ -731,6 +840,21 @@ onMounted(() => {
   gap: 8px;
 }
 .logo-icon { font-size: 24px; }
+.head-back {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  min-height: 36px;
+}
+.head-back:active { background: #e2e8f0; }
+.header-left { display: flex; align-items: center; gap: 10px; }
 .logo-text {
   font-size: 18px;
   font-weight: 700;
@@ -966,6 +1090,49 @@ onMounted(() => {
   padding: 2px 6px;
   border-radius: 6px;
 }
+.album-del {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  color: white;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.album-del:active { background: #ef4444; }
+.album-transcoding {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(245,158,11,0.9);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.img-preview-del {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 26px;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 22px;
+  background: rgba(239,68,68,0.85);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+.img-preview-del:active { background: #dc2626; }
 .img-preview-overlay {
   position: fixed;
   inset: 0;
@@ -1111,13 +1278,13 @@ onMounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px 12px;
+  padding: 4px 6px;
   color: #94a3b8;
   transition: all 0.2s;
 }
 .nav-item.active { color: #6366f1; }
 .nav-icon { font-size: 20px; }
-.nav-text { font-size: 10px; }
+.nav-text { font-size: 10px; white-space: nowrap; }
 .nav-add {
   width: 48px;
   height: 48px;

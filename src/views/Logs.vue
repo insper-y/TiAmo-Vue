@@ -1,7 +1,7 @@
 <template>
   <div class="logs-page">
     <div class="page-header">
-      <button class="back-btn" @click="$router.back()">
+      <button class="back-btn" @click="goBack">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
@@ -129,9 +129,17 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import Pagination from '../components/Pagination.vue'
 import { logApi } from '../api'
 import { toast, confirm } from '../utils'
+
+const router = useRouter()
+// 返回：有历史记录则回退，直接进入时回到控制台
+const goBack = () => {
+  if (window.history.state && window.history.state.back) router.back()
+  else router.push('/dashboard')
+}
 
 const loading = ref(false)
 const logs = ref([])
