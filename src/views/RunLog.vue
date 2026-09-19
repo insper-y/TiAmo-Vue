@@ -279,8 +279,8 @@ const loadAll = () => {
 const toggleAutoRefresh = () => {
   autoRefresh.value = !autoRefresh.value
   if (autoRefresh.value) {
-    refreshTimer = setInterval(loadAll, 3000)
-    toast.info('已开启自动刷新（3秒）')
+    refreshTimer = setInterval(loadAll, 10000)
+    toast.info('已开启自动刷新（10秒）')
   } else {
     clearInterval(refreshTimer)
     toast.info('已关闭自动刷新')
@@ -306,7 +306,7 @@ const showDetail = (log) => {
 
 onMounted(() => {
   loadAll()
-  refreshTimer = setInterval(loadAll, 3000)
+  refreshTimer = setInterval(loadAll, 10000)
 })
 
 onUnmounted(() => {

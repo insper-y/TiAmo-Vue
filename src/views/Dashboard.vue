@@ -883,15 +883,8 @@ const sendEmail = async (type) => {
 
 onMounted(() => {
   loadRecentLogs()
-  if (isAdmin.value) {
-    loadUsers()
-    loadTables()
-    loadEmailConfig()
-    loadPending()
-  }
-  loadAlbum()
-  // 刷新后若停留在非首页页签，补拉该页签数据
-  if (activeTab.value !== 'home') refreshTab(activeTab.value)
+  // 只加载当前视图需要的数据，其余页签打开时再拉（每个请求都要过 Cloudflare 往返，越少越快）
+  refreshTab(activeTab.value)
   window.addEventListener('beforeunload', onBeforeUnload)
   resumePendingUploads()
   // 从其他页面点底部导航“+”跳转过来时，直接打开文件选择

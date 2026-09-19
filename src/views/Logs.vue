@@ -208,8 +208,8 @@ const toggleAutoRefresh = () => {
     refreshTimer = setInterval(() => {
       loadLogs()
       loadStats()
-    }, 5000)
-    toast.info('已开启自动刷新（5秒）')
+    }, 10000)
+    toast.info('已开启自动刷新（10秒）')
   } else {
     clearInterval(refreshTimer)
     toast.info('已关闭自动刷新')
