@@ -289,7 +289,7 @@ import Pagination from '../components/Pagination.vue'
 import AppHeader from '../components/AppHeader.vue'
 import BottomNav from '../components/BottomNav.vue'
 import { auth, toast, confirm, formatTime } from '../utils'
-import { compressImage, addPending, removePending, listPending } from '../utils/upload'
+import { compressImage, addPending, removePending, listPending, uploadInChunks } from '../utils/upload'
 import {
   userApi, bookApi, approvalApi, logApi, dbApi,
   exportApi, configApi, albumApi, authApi
@@ -642,15 +642,22 @@ const pumpPool = () => {
 // 单文件单次尝试：成功 ok / 失败 fail / 被取消 cancelled
 const tryUpload = async (record, temp) => {
   if (temp.cancelled) return 'cancelled'
-  const formData = new FormData()
-  formData.append('file', record.blob, record.name)
-  const onProgress = (pe) => {
-    if (!temp.cancelled) temp.progress = pe.total ? Math.min(99, Math.round((pe.loaded / pe.total) * 100)) : 0
+  const setProgress = (pct) => { if (!temp.cancelled) temp.progress = Math.max(temp.progress, pct) }
+  const onAxiosProgress = (pe) => {
+    if (!temp.cancelled) setProgress(pe.total ? Math.min(99, Math.round((pe.loaded / pe.total) * 100)) : 0)
   }
   try {
-    const res = record.type === 'image'
-      ? await albumApi.uploadImage(formData, onProgress)
-      : await albumApi.uploadVideo(formData, onProgress)
+    let res
+    if (record.blob.size >= 1024 * 1024) {
+      // 大文件走分片并行通道，聚合多条连接的链路带宽
+      res = await uploadInChunks(record, setProgress)
+    } else {
+      const formData = new FormData()
+      formData.append('file', record.blob, record.name)
+      res = record.type === 'image'
+        ? await albumApi.uploadImage(formData, onAxiosProgress)
+        : await albumApi.uploadVideo(formData, onAxiosProgress)
+    }
     if (temp.cancelled) return 'cancelled'
     const map = res?.data
     if (!map || map.success === false) {
