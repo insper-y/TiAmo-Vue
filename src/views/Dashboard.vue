@@ -233,6 +233,7 @@
             </div>
             <button class="album-del" title="删除" @click.stop="deleteAlbumItem(item)">×</button>
             <span v-if="item.uploading" class="album-uploading">{{ '上传中 ' + (item.progress || 0) + '%' }}</span>
+            <span v-else-if="item.failed" class="album-failed">已中断·自动续传</span>
             <span v-if="item.transcoding" class="album-transcoding">转码中</span>
             <span class="album-type">{{ item.type === 'image' ? '图片' : '视频' }}</span>
           </div>
@@ -282,12 +283,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Pagination from '../components/Pagination.vue'
 import AppHeader from '../components/AppHeader.vue'
 import BottomNav from '../components/BottomNav.vue'
 import { auth, toast, confirm, formatTime } from '../utils'
+import { compressImage, addPending, removePending, listPending } from '../utils/upload'
 import {
   userApi, bookApi, approvalApi, logApi, dbApi,
   exportApi, configApi, albumApi, authApi
@@ -601,7 +603,8 @@ const loadAlbum = async () => {
     ;(imgRes.data?.records || imgRes.data || []).forEach(i => items.push(toImageItem(i)))
     ;(vidRes.data?.records || vidRes.data || []).forEach(v => items.push(toVideoItem(v)))
     items.sort((a, b) => new Date(b.createTime || 0) - new Date(a.createTime || 0))
-    albumItems.value = items
+    const pendingTemps = albumItems.value.filter(i => i.uploading || i.failed)
+    albumItems.value = [...pendingTemps, ...items]
   } catch (e) { toast.error('加载相册失败') }
 }
 
@@ -626,54 +629,130 @@ const replaceTempItems = (tempItems, realItems) => {
     .sort((a, b) => new Date(b.createTime || 0) - new Date(a.createTime || 0))
 }
 
+// —— 上传并发池（最多3路并行，慢速链路下多文件互不等待）——
+const pool = { active: 0, limit: 3, waiting: [] }
+const pumpPool = () => {
+  while (pool.active < pool.limit && pool.waiting.length) {
+    const task = pool.waiting.shift()
+    pool.active++
+    Promise.resolve(task()).finally(() => { pool.active--; pumpPool() })
+  }
+}
+
+// 单文件单次尝试：成功 ok / 失败 fail / 被取消 cancelled
+const tryUpload = async (record, temp) => {
+  if (temp.cancelled) return 'cancelled'
+  const formData = new FormData()
+  formData.append('file', record.blob, record.name)
+  const onProgress = (pe) => {
+    if (!temp.cancelled) temp.progress = pe.total ? Math.min(99, Math.round((pe.loaded / pe.total) * 100)) : 0
+  }
+  try {
+    const res = record.type === 'image'
+      ? await albumApi.uploadImage(formData, onProgress)
+      : await albumApi.uploadVideo(formData, onProgress)
+    if (temp.cancelled) return 'cancelled'
+    const map = res?.data
+    if (!map || map.success === false) {
+      // 业务性拒绝（格式/大小限制）重试无意义，直接提示
+      toast.error(map?.message || '上传失败')
+      return 'rejected'
+    }
+    const real = map.data ? [record.type === 'image' ? toImageItem(map.data) : toVideoItem(map.data)] : []
+    replaceTempItems([temp], real)
+    await removePending(record.qid)
+    if (record.type === 'video') setTimeout(loadAlbum, 6000)
+    return 'ok'
+  } catch (err) {
+    return 'fail'
+  }
+}
+
+// 失败自动重试（应对弱网抖动），共尝试3次；仍失败则保留队列，下次进入页面自动续传
+const uploadOne = async (record, temp) => {
+  let result = 'fail'
+  for (let attempt = 0; attempt < 3; attempt++) {
+    result = await tryUpload(record, temp)
+    if (result !== 'fail') break
+    if (result === 'rejected') break
+    if (temp.cancelled) { result = 'cancelled'; break }
+    await new Promise(r => setTimeout(r, 2000 * (attempt + 1)))
+    temp.progress = 0
+  }
+  if (result === 'fail' || result === 'rejected') {
+    temp.uploading = false
+    temp.failed = true
+    if (result === 'fail') toast.error(`"${temp.name}" 上传失败，已保留，稍后自动续传`)
+  }
+}
+
+const makeTempItem = (record, idx) => {
+  const url = URL.createObjectURL(record.blob)
+  const base = {
+    type: record.type,
+    id: -(Date.now() + idx),
+    qid: record.qid,
+    name: record.name,
+    createTime: record.createTime,
+    uploading: true,
+    progress: 0,
+    failed: false,
+    url,
+    transcoding: false
+  }
+  return record.type === 'image'
+    ? { ...base, thumb: url, full: url }
+    : { ...base, thumb: '', playUrl: url }
+}
+
+const enqueueUploadTask = (record, temp) => {
+  pool.waiting.push(() => uploadOne(record, temp))
+  pumpPool()
+}
+
+// 选择文件 → 图片本地压缩（体积常能降5-10倍）→ 存入IndexedDB → 入队上传
 const handleUpload = async (type, e) => {
   const files = Array.from(e.target.files || [])
   if (!files.length) return
-  // 先用本地 Blob 地址即时插入相册，无需等待上传完成即可看到内容
-  const tempItems = files.map((f, idx) => {
-    const url = URL.createObjectURL(f)
-    const tempId = -(Date.now() + idx)
-    const base = { type, id: tempId, name: f.name, createTime: new Date().toISOString(), uploading: true, progress: 0, url }
-    return type === 'image'
-      ? { ...base, thumb: url, full: url, transcoding: false }
-      : { ...base, thumb: '', playUrl: url, transcoding: false }
-  })
-  albumItems.value = [...tempItems, ...albumItems.value]
-  const updateProgress = (pe) => {
-    const pct = pe.total ? Math.min(99, Math.round((pe.loaded / pe.total) * 100)) : 0
-    tempItems.forEach(t => { t.progress = pct })
-  }
-  const formData = new FormData()
-  files.forEach(f => formData.append(files.length > 1 ? 'files' : 'file', f))
-  try {
-    let realItems = []
-    if (files.length > 1) {
-      const res = type === 'image'
-        ? await albumApi.uploadImageBatch(formData, updateProgress)
-        : await albumApi.uploadVideoBatch(formData, updateProgress)
-      const list = res?.data || []
-      const okList = list.filter(r => r.success)
-      if (!okList.length) throw new Error(res?.message || '上传失败')
-      realItems = okList.map(r => type === 'image' ? toImageItem(r.data) : toVideoItem(r.data))
-      if (okList.length < files.length) toast.warning(`成功${okList.length}个，失败${files.length - okList.length}个`)
-      else toast.success('上传成功')
-    } else {
-      const res = type === 'image'
-        ? await albumApi.uploadImage(formData, updateProgress)
-        : await albumApi.uploadVideo(formData, updateProgress)
-      const map = res?.data
-      if (!map || map.success === false) throw new Error(map?.message || '上传失败')
-      if (map.data) realItems = [type === 'image' ? toImageItem(map.data) : toVideoItem(map.data)]
-      toast.success('上传成功')
-    }
-    replaceTempItems(tempItems, realItems)
-    // 视频需后端转码/生成封面，稍后再拉取一次以获得封面与压缩版地址
-    if (type === 'video') setTimeout(loadAlbum, 6000)
-  } catch (err) {
-    replaceTempItems(tempItems, [])
-    toast.error(err?.response?.data?.message || err?.message || '上传失败')
-  }
   e.target.value = ''
+  toast.info(`已加入上传队列：${files.length} 个文件`)
+  for (let idx = 0; idx < files.length; idx++) {
+    let payload = files[idx]
+    if (type === 'image') payload = await compressImage(payload)
+    const record = {
+      qid: 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + idx,
+      type,
+      name: payload.name,
+      blob: payload,
+      createTime: new Date().toISOString()
+    }
+    try { await addPending(record) } catch (err) { /* 存储失败不阻塞上传 */ }
+    const temp = makeTempItem(record, idx)
+    albumItems.value = [temp, ...albumItems.value]
+    enqueueUploadTask(record, temp)
+  }
+}
+
+// 进入页面时恢复上次未完成的上传（刷新/退出导致中断的文件自动续传）
+const resumePendingUploads = async () => {
+  let records = []
+  try { records = await listPending() } catch (e) { return }
+  records.sort((a, b) => new Date(a.createTime) - new Date(b.createTime))
+  if (!records.length) return
+  toast.info(`检测到 ${records.length} 个未完成的上传，正在自动续传...`)
+  records.forEach((rec, idx) => {
+    const temp = makeTempItem(rec, idx + 1000)
+    albumItems.value = [temp, ...albumItems.value]
+    enqueueUploadTask(rec, temp)
+  })
+}
+
+// 上传进行中刷新/关闭页面会中断传输，弹出浏览器确认
+const onBeforeUnload = (ev) => {
+  if (albumItems.value.some(i => i.uploading)) {
+    ev.preventDefault()
+    ev.returnValue = ''
+  }
 }
 
 const onThumbError = (item) => {
@@ -806,6 +885,8 @@ onMounted(() => {
   loadAlbum()
   // 刷新后若停留在非首页页签，补拉该页签数据
   if (activeTab.value !== 'home') refreshTab(activeTab.value)
+  window.addEventListener('beforeunload', onBeforeUnload)
+  resumePendingUploads()
   // 从其他页面点底部导航“+”跳转过来时，直接打开文件选择
   if (route.query.upload === '1') {
     const q = { ...route.query }
@@ -813,6 +894,10 @@ onMounted(() => {
     router.replace({ query: q })
     triggerUpload('image')
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
 })
 </script>
 
@@ -1015,6 +1100,17 @@ onMounted(() => {
   font-size: 10px;
   padding: 2px 6px;
   border-radius: 6px;
+}
+.album-failed {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(239,68,68,0.85);
+  color: white;
+  font-size: 9px;
+  padding: 2px 4px;
+  text-align: center;
 }
 .album-uploading {
   position: absolute;
