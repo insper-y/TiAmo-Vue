@@ -167,7 +167,7 @@ const logs = ref([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
-const autoRefresh = ref(false)
+const autoRefresh = ref(true)
 const levelFilter = ref('')
 const detailLog = ref(null)
 let refreshTimer = null
@@ -211,7 +211,13 @@ const loadServerStatus = async () => {
   try {
     const res = await serverApi.status()
     if (res.code === 200 && res.data) {
-      Object.assign(serverStatus, res.data)
+      const d = res.data
+      serverStatus.cpuUsage = d.cpu?.processCpuLoad ?? d.cpuUsage ?? 0
+      serverStatus.memoryUsage = d.memory?.usagePercent ?? d.memoryUsage ?? 0
+      serverStatus.jvmUsage = d.jvm?.usagePercent ?? d.jvmUsage ?? 0
+      serverStatus.diskUsage = d.disk?.usagePercent ?? d.diskUsage ?? 0
+      serverStatus.threadCount = d.threads?.current ?? d.threadCount ?? 0
+      serverStatus.uptime = d.runtime?.uptimeMs ?? d.runtime?.uptime ?? d.uptime ?? 0
     }
   } catch (e) {}
 }
@@ -281,6 +287,7 @@ const showDetail = (log) => {
 
 onMounted(() => {
   loadAll()
+  refreshTimer = setInterval(loadAll, 3000)
 })
 
 onUnmounted(() => {
@@ -292,6 +299,16 @@ onUnmounted(() => {
 .runlog-page {
   min-height: 100vh;
   background: #f8fafc;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+.mobile-card-title {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+.log-card .log-message {
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .server-status {
   display: grid;
@@ -370,6 +387,59 @@ onUnmounted(() => {
   max-height: 150px;
   overflow-y: auto;
   white-space: pre-wrap;
+}
+@media (max-width: 768px) {
+  .page-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+  .page-header h1 {
+    font-size: 18px;
+    flex: 1;
+    min-width: 0;
+  }
+  .action-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 16px 12px;
+  }
+  .action-toolbar .select,
+  .action-toolbar .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .stats-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 16px 12px;
+  }
+  .stat-item {
+    flex: 1 1 30%;
+    justify-content: center;
+  }
+  .server-status {
+    gap: 8px;
+    padding: 0 12px 12px;
+  }
+  .status-card {
+    padding: 10px;
+  }
+  .status-value { font-size: 14px; }
+  .modal {
+    width: calc(100% - 24px);
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal-body { padding: 12px; }
+  .detail-row {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .detail-label { min-width: 0; }
+}
+@media (max-width: 380px) {
+  .server-status { grid-template-columns: 1fr; }
 }
 @media (min-width: 769px) {
   .server-status { grid-template-columns: repeat(3, 1fr); }

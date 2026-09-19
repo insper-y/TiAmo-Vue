@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE = 'https://tiamo-z.duckdns.org:80'
+const API_BASE = ''
 
 const request = axios.create({
   baseURL: API_BASE,
@@ -95,7 +95,7 @@ export const logApi = {
 
 // 运行日志
 export const runLogApi = {
-  list: (params) => request.get('/api/run-log', { params }),
+  list: (params) => request.get('/api/run-log/list', { params }),
   stats: () => request.get('/api/run-log/stats'),
   clearAll: () => request.post('/api/run-log/clear-all'),
   clean: (days) => request.post('/api/run-log/clean', { days })

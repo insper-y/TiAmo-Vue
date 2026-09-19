@@ -8,6 +8,16 @@
           <span class="logo-text">Tiamo AI</span>
         </div>
       </div>
+
+      <!-- 图片/视频放大预览 -->
+      <div v-if="previewImg" class="img-preview-overlay" @click="previewImg = null">
+        <img :src="previewImg" class="img-preview" @click.stop />
+        <button class="img-preview-close" @click="previewImg = null">×</button>
+      </div>
+      <div v-if="previewVideo" class="img-preview-overlay" @click="previewVideo = null">
+        <video :src="previewVideo" class="video-preview" controls autoplay @click.stop></video>
+        <button class="img-preview-close" @click="previewVideo = null">×</button>
+      </div>
       <div class="header-right">
         <span class="user-name">{{ user?.username }}</span>
         <span class="user-role" :class="isAdmin ? 'admin' : 'user'">
@@ -16,21 +26,6 @@
         <button class="logout-btn" @click="handleLogout">退出</button>
       </div>
     </header>
-
-    <!-- 标签栏 -->
-    <nav class="tab-bar">
-      <button
-        v-for="tab in visibleTabs"
-        :key="tab.key"
-        class="tab-btn"
-        :class="{ active: activeTab === tab.key }"
-        @click="activeTab = tab.key"
-      >
-        <span class="tab-icon">{{ tab.icon }}</span>
-        <span class="tab-text">{{ tab.name }}</span>
-        <span v-if="tab.badge && tab.badge > 0" class="tab-badge">{{ tab.badge }}</span>
-      </button>
-    </nav>
 
     <!-- 内容区 -->
     <main class="content">
@@ -105,37 +100,6 @@
         </div>
       </div>
 
-      <!-- 商品数据 -->
-      <div v-if="activeTab === 'books'" class="books-view">
-        <div class="view-header">
-          <h3>商品数据</h3>
-          <button class="btn-primary btn-sm" @click="showAddBook = true">新增商品</button>
-        </div>
-        <div class="filter-bar">
-          <input v-model="bookSearch" class="input" placeholder="搜索商品" @keyup.enter="loadBooks" />
-          <button class="btn" @click="loadBooks">搜索</button>
-          <button class="btn" @click="loadBooks">刷新</button>
-        </div>
-        <div class="mobile-card-list">
-          <div v-if="books.length === 0" class="empty-state">暂无商品数据</div>
-          <div v-for="b in books" :key="b.id" class="mobile-card">
-            <div class="mobile-card-header">
-              <div class="mobile-card-title">{{ b.title || b.name || '商品 ' + b.id }}</div>
-              <span class="mobile-card-badge">ID: {{ b.id }}</span>
-            </div>
-            <div class="mobile-card-body">
-              <div class="mobile-card-row"><span class="label">分销软件</span><span class="value">{{ b.software || '-' }}</span></div>
-              <div class="mobile-card-row"><span class="label">微信账号</span><span class="value">{{ b.wechatAccount || '-' }}</span></div>
-              <div class="mobile-card-row"><span class="label">软件账号</span><span class="value">{{ b.softwareAccount || '-' }}</span></div>
-            </div>
-            <div class="mobile-card-footer">
-              <button class="btn" @click="editBook(b)">编辑</button>
-              <button class="btn btn-danger" @click="deleteBook(b)">删除</button>
-            </div>
-          </div>
-        </div>
-        <Pagination v-if="bookTotal > 0" :total="bookTotal" v-model:currentPage="bookPage" v-model:pageSize="bookPageSize" @change="loadBooks" />
-      </div>
 
       <!-- 回收站 -->
       <div v-if="activeTab === 'recycle'" class="recycle-view">
@@ -284,38 +248,6 @@
         </div>
       </div>
 
-      <!-- 我的申请 -->
-      <div v-if="activeTab === 'myApproval'" class="my-approval-view">
-        <div class="view-header">
-          <h3>我的申请</h3>
-          <div class="header-actions">
-            <button class="btn btn-sm" @click="markAllAsRead">一键阅读</button>
-            <button class="btn btn-sm" @click="deleteAllRead">清理已读</button>
-            <button class="btn btn-sm" @click="loadMyApprovals">刷新</button>
-          </div>
-        </div>
-        <div class="mobile-card-list">
-          <div v-if="myApprovals.length === 0" class="empty-state">暂无申请记录</div>
-          <div v-for="a in myApprovals" :key="a.id" class="mobile-card">
-            <div class="mobile-card-header">
-              <div class="mobile-card-title">{{ a.bookName || '商品 ' + a.bookId }}</div>
-              <span class="mobile-card-badge" :class="a.approvalType === 'RESTORE' ? 'success' : 'danger'">
-                申请{{ a.approvalType === 'RESTORE' ? '恢复' : '删除' }}
-              </span>
-            </div>
-            <div class="mobile-card-body">
-              <div class="mobile-card-row"><span class="label">状态</span><span class="value" :style="{color: a.status === 'APPROVED' ? '#059669' : a.status === 'REJECTED' ? '#dc2626' : '#d97706'}">{{ statusText(a.status) }}</span></div>
-              <div class="mobile-card-row"><span class="label">阅读</span><span class="value">{{ a.isRead ? '已阅读' : '未阅读' }}</span></div>
-              <div class="mobile-card-row"><span class="label">申请时间</span><span class="value">{{ a.applyTime }}</span></div>
-              <div v-if="a.remark" class="mobile-card-row"><span class="label">拒绝原因</span><span class="value" style="color:#dc2626">{{ a.remark }}</span></div>
-            </div>
-            <div class="mobile-card-footer">
-              <button v-if="a.status !== 'PENDING' && !a.isRead" class="btn" @click="markAsRead(a.id)">已阅读</button>
-              <button class="btn btn-danger" :disabled="a.status === 'PENDING' || !a.isRead" @click="deleteApproval(a.id)">删除</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- 待审批 -->
       <div v-if="activeTab === 'pending' && isAdmin" class="pending-view">
@@ -378,10 +310,6 @@
         <span class="nav-icon">🏠</span>
         <span class="nav-text">首页</span>
       </button>
-      <button class="nav-item" :class="{active: activeTab === 'books'}" @click="activeTab = 'books'">
-        <span class="nav-icon">📦</span>
-        <span class="nav-text">商品</span>
-      </button>
       <button class="nav-item nav-add" @click="activeTab = 'album'">
         <span class="nav-icon">➕</span>
       </button>
@@ -389,43 +317,7 @@
         <span class="nav-icon">📋</span>
         <span class="nav-text">日志</span>
       </button>
-      <button class="nav-item" :class="{active: activeTab === 'myApproval'}" @click="activeTab = 'myApproval'">
-        <span class="nav-icon">👤</span>
-        <span class="nav-text">我的</span>
-      </button>
     </nav>
-
-    <!-- 新增/编辑商品弹窗 -->
-    <div v-if="showAddBook" class="modal-overlay" @click.self="showAddBook = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>{{ editingBook ? '编辑商品' : '新增商品' }}</h3>
-          <button class="modal-close" @click="showAddBook = false">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">商品标题</label>
-            <input v-model="bookForm.title" class="input" placeholder="请输入商品标题" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">分销软件</label>
-            <input v-model="bookForm.software" class="input" placeholder="请输入分销软件" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">微信账号</label>
-            <input v-model="bookForm.wechatAccount" class="input" placeholder="请输入微信账号" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">软件账号</label>
-            <input v-model="bookForm.softwareAccount" class="input" placeholder="请输入软件账号" />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn" @click="showAddBook = false">取消</button>
-          <button class="btn-primary" @click="saveBook">保存</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -448,13 +340,11 @@ const activeTab = ref('home')
 const allTabs = [
   { key: 'home', name: '首页', icon: '🏠', admin: false },
   { key: 'users', name: '用户管理', icon: '👥', admin: true },
-  { key: 'books', name: '商品数据', icon: '📦', admin: false },
   { key: 'recycle', name: '回收站', icon: '🗑️', admin: false },
   { key: 'database', name: '数据库', icon: '🗄️', admin: true },
   { key: 'export', name: '数据导出', icon: '📤', admin: false },
   { key: 'email', name: '邮件配置', icon: '📧', admin: true },
   { key: 'album', name: '相册', icon: '🖼️', admin: false },
-  { key: 'myApproval', name: '我的申请', icon: '📝', admin: false },
   { key: 'pending', name: '待审批', icon: '⏳', admin: true, badge: 0 },
   { key: 'logs', name: '日志', icon: '📋', admin: false }
 ]
@@ -462,11 +352,9 @@ const allTabs = [
 const visibleTabs = computed(() => allTabs.filter(t => !t.admin || isAdmin.value))
 
 const quickFunctions = computed(() => [
-  { key: 'books', name: '商品数据', icon: '📦', bg: 'linear-gradient(135deg,#6366f1,#8b5cf6)' },
   { key: 'recycle', name: '回收站', icon: '🗑️', bg: 'linear-gradient(135deg,#f59e0b,#f97316)' },
   { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' },
   { key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' },
-  { key: 'myApproval', name: '我的申请', icon: '📝', bg: 'linear-gradient(135deg,#ec4899,#db2777)' },
   { key: 'logs', name: '操作日志', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' }
 ])
 
@@ -490,14 +378,6 @@ const users = ref([])
 const userSearch = ref('')
 
 // 商品数据
-const books = ref([])
-const bookTotal = ref(0)
-const bookPage = ref(1)
-const bookPageSize = ref(20)
-const bookSearch = ref('')
-const showAddBook = ref(false)
-const editingBook = ref(null)
-const bookForm = reactive({ title: '', software: '', wechatAccount: '', softwareAccount: '' })
 
 // 回收站
 const recycleList = ref([])
@@ -514,6 +394,8 @@ const emailConfig = reactive({
 // 相册
 const albumTab = ref('all')
 const albumItems = ref([])
+const previewImg = ref('')
+const previewVideo = ref('')
 const imageInput = ref(null)
 const videoInput = ref(null)
 const filteredAlbum = computed(() => {
@@ -521,8 +403,6 @@ const filteredAlbum = computed(() => {
   return albumItems.value.filter(i => i.type === albumTab.value)
 })
 
-// 我的申请
-const myApprovals = ref([])
 
 // 待审批
 const pendingList = ref([])
@@ -531,7 +411,6 @@ const selectedApprovals = ref([])
 // 导出项
 const exportItems = [
   { key: 'users', name: '用户数据', desc: '导出所有用户信息', icon: '👥', bg: '#eef2ff' },
-  { key: 'books', name: '商品数据', desc: '导出所有商品数据', icon: '📦', bg: '#f0fdf4' },
   { key: 'logs', name: '操作日志', desc: '导出所有操作日志', icon: '📋', bg: '#fffbeb' },
   { key: 'runLogs', name: '运行日志', desc: '导出系统运行日志', icon: '⚙️', bg: '#f0f9ff' }
 ]
@@ -591,48 +470,6 @@ const deleteUser = async (u) => {
     await userApi.delete(u.id)
     toast.success('删除成功')
     loadUsers()
-  } catch (e) { toast.error('删除失败') }
-}
-
-const loadBooks = async () => {
-  try {
-    const res = await bookApi.list({ page: bookPage.value, size: bookPageSize.value, keyword: bookSearch.value })
-    if (res.code === 200) {
-      books.value = res.data?.records || res.data?.list || res.data || []
-      bookTotal.value = res.data?.total || books.value.length
-    }
-  } catch (e) { toast.error('加载商品失败') }
-}
-
-const editBook = (b) => {
-  editingBook.value = b
-  Object.assign(bookForm, { title: b.title, software: b.software, wechatAccount: b.wechatAccount, softwareAccount: b.softwareAccount })
-  showAddBook.value = true
-}
-
-const saveBook = async () => {
-  try {
-    if (editingBook.value) {
-      await bookApi.update(editingBook.value.id, bookForm)
-      toast.success('更新成功')
-    } else {
-      await bookApi.create(bookForm)
-      toast.success('添加成功')
-    }
-    showAddBook.value = false
-    editingBook.value = null
-    Object.assign(bookForm, { title: '', software: '', wechatAccount: '', softwareAccount: '' })
-    loadBooks()
-  } catch (e) { toast.error('保存失败') }
-}
-
-const deleteBook = async (b) => {
-  const ok = await confirm('删除商品', '确定要删除这个商品吗？删除后可在回收站恢复。')
-  if (!ok) return
-  try {
-    await bookApi.delete(b.id)
-    toast.success('删除成功')
-    loadBooks()
   } catch (e) { toast.error('删除失败') }
 }
 
@@ -726,10 +563,10 @@ const loadAlbum = async () => {
     ])
     const items = []
     ;(imgRes.data?.records || imgRes.data || []).forEach(i => {
-      items.push({ type: 'image', id: i.id, thumb: `https://tiamo-z.duckdns.org:80/uploads/images/${i.filePath || i.fileName}`, name: i.originalName })
+      items.push({ type: 'image', id: i.id, thumb: i.thumbnailPath || i.filePath || `/uploads/images/${i.fileName}`, name: i.originalName })
     })
     ;(vidRes.data?.records || vidRes.data || []).forEach(v => {
-      items.push({ type: 'video', id: v.id, thumb: v.coverPath ? `https://tiamo-z.duckdns.org:80/uploads/videos/${v.coverPath}` : '', name: v.originalName, playUrl: `https://tiamo-z.duckdns.org:80/uploads/videos/${v.filePath}` })
+      items.push({ type: 'video', id: v.id, thumb: v.coverPath || '', name: v.originalName, playUrl: v.filePath || (v.playUrl ? `/uploads/videos/${v.playUrl}` : '') })
     })
     items.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
     albumItems.value = items
@@ -745,11 +582,20 @@ const handleUpload = async (type, e) => {
   const files = e.target.files
   if (!files.length) return
   const formData = new FormData()
-  for (let i = 0; i < files.length; i++) formData.append('files', files[i])
+  for (let i = 0; i < files.length; i++) formData.append('file', files[i])
   try {
     toast.info('上传中...')
-    if (type === 'image') await albumApi.uploadImage(formData)
-    else await albumApi.uploadVideo(formData)
+    let res
+    if (type === 'image') res = await albumApi.uploadImage(formData)
+    else res = await albumApi.uploadVideo(formData)
+    const data = res?.data?.data || res?.data
+    if (data) {
+      if (type === 'image') {
+        albumItems.value.unshift({ type: 'image', id: data.id, thumb: data.thumbnailPath || data.filePath || `/uploads/images/${data.fileName}`, name: data.originalName })
+      } else {
+        albumItems.value.unshift({ type: 'video', id: data.id, thumb: data.coverPath || '', name: data.originalName, playUrl: data.filePath || (data.playUrl ? `/uploads/videos/${data.playUrl}` : '') })
+      }
+    }
     toast.success('上传成功')
     loadAlbum()
   } catch (e) { toast.error('上传失败') }
@@ -758,55 +604,21 @@ const handleUpload = async (type, e) => {
 
 const previewAlbum = (item) => {
   if (item.type === 'image') {
-    window.open(item.thumb, '_blank')
+    previewImg.value = item.thumb
   } else {
-    alert('视频播放：' + item.name)
+    previewVideo.value = item.playUrl || item.thumb
   }
 }
-
-const loadMyApprovals = async () => {
-  try {
-    const res = await approvalApi.myApprovals({ page: 1, size: 100 })
-    if (res.code === 200) myApprovals.value = res.data?.records || res.data || []
-  } catch (e) { toast.error('加载失败') }
-}
-
-const statusText = (s) => ({ PENDING: '待审批', APPROVED: '已通过', REJECTED: '已拒绝' }[s] || s)
-
-const markAsRead = async (id) => {
-  try {
-    await approvalApi.markAsRead(id)
-    toast.success('已标记阅读')
-    loadMyApprovals()
-  } catch (e) { toast.error('操作失败') }
-}
-
-const markAllAsRead = async () => {
-  try {
-    await approvalApi.markAllAsRead()
-    toast.success('全部已阅读')
-    loadMyApprovals()
-  } catch (e) { toast.error('操作失败') }
-}
-
-const deleteAllRead = async () => {
-  const ok = await confirm('清理已读', '确定要清理所有已阅读的申请记录吗？')
+const deleteAlbumItem = async (item) => {
+  const ok = await confirm('删除', `确定要删除该${item.type === 'image' ? '图片' : '视频'}吗？`)
   if (!ok) return
   try {
-    await approvalApi.deleteAllRead()
-    toast.success('清理成功')
-    loadMyApprovals()
-  } catch (e) { toast.error('清理失败') }
-}
-
-const deleteApproval = async (id) => {
-  try {
-    await approvalApi.delete(id)
+    if (item.type === 'image') await albumApi.deleteImage(item.id)
+    else await albumApi.deleteVideo(item.id)
     toast.success('删除成功')
-    loadMyApprovals()
+    loadAlbum()
   } catch (e) { toast.error('删除失败') }
 }
-
 const loadPending = async () => {
   try {
     const res = await approvalApi.pending({ page: 1, size: 100 })
@@ -891,8 +703,6 @@ onMounted(() => {
     loadEmailConfig()
     loadPending()
   }
-  loadBooks()
-  loadRecycle()
   loadAlbum()
   loadMyApprovals()
 })
@@ -1156,6 +966,43 @@ onMounted(() => {
   padding: 2px 6px;
   border-radius: 6px;
 }
+.img-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.img-preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.video-preview {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  background: #000;
+}
+.img-preview-close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  color: white;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.img-preview-close:hover { background: rgba(255,255,255,0.35); }
 
 /* 导出 */
 .export-list { display: flex; flex-direction: column; gap: 10px; }

@@ -105,7 +105,7 @@ const handleLogin = async () => {
 
     if (res.code === 200 && res.data) {
       auth.setToken(res.data.token)
-      auth.setUser(res.data.user)
+      auth.setUser(res.data)
 
       if (form.remember) {
         localStorage.setItem('tiamo_remember', JSON.stringify({

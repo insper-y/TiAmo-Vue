@@ -64,3 +64,55 @@ const onPageSizeChange = (value) => {
   emit('change', 1)
 }
 </script>
+
+<style scoped>
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  font-size: 13px;
+}
+.pagination button {
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.pagination button.active {
+  background: #6366f1;
+  color: white;
+  border-color: #6366f1;
+}
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pagination .page-info {
+  color: #64748b;
+  margin-left: 4px;
+}
+.pagination .select {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+@media (max-width: 768px) {
+  .pagination {
+    justify-content: center;
+    gap: 4px;
+    padding: 12px;
+  }
+  .pagination button {
+    padding: 5px 7px;
+    font-size: 12px;
+  }
+  .pagination .page-info {
+    flex-basis: 100%;
+    text-align: center;
+    margin: 4px 0 0;
+  }
+}
+</style>
