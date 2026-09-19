@@ -1,11 +1,8 @@
 <template>
   <div class="runlog-page">
-    <div class="page-header">
-      <button class="back-btn" @click="goBack">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-      </button>
+    <AppHeader show-back @back="goBack" />
+
+    <div class="page-title-bar">
       <h1>运行日志</h1>
       <button class="btn btn-sm" @click="loadAll">刷新</button>
     </div>
@@ -153,21 +150,35 @@
         </div>
       </div>
     </div>
+
+    <BottomNav active="runlog" @go="onNav" />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Pagination from '../components/Pagination.vue'
+import AppHeader from '../components/AppHeader.vue'
+import BottomNav from '../components/BottomNav.vue'
 import { runLogApi, serverApi } from '../api'
 import { toast, confirm } from '../utils'
 
 const router = useRouter()
+const route = useRoute()
 // 返回：有历史记录则回退，直接进入时回到控制台
 const goBack = () => {
   if (window.history.state && window.history.state.back) router.back()
   else router.push('/dashboard')
+}
+
+// 底部导航跳转
+const onNav = (key) => {
+  if (key === 'home') router.push('/dashboard')
+  else if (key === 'album') router.push('/dashboard?tab=album')
+  else if (key === 'add') router.push('/dashboard?tab=album&upload=1')
+  else if (key === 'logs' && route.path !== '/logs') router.push('/logs')
+  else if (key === 'runlog' && route.path !== '/run-log') router.push('/run-log')
 }
 
 const loading = ref(false)
@@ -304,9 +315,26 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.page-title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 10px;
+}
+.page-title-bar h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+@media (min-width: 769px) {
+  .page-title-bar { padding: 16px 24px 12px; }
+  .runlog-page { padding-bottom: 0; }
+}
 .runlog-page {
   min-height: 100vh;
   background: #f8fafc;
+  padding-bottom: calc(90px + env(safe-area-inset-bottom));
   overflow-x: hidden;
   max-width: 100vw;
 }

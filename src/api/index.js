@@ -132,22 +132,19 @@ export const configApi = {
   updateEmail: (data) => request.put('/api/config/email', data)
 }
 
-// 相册
+// 相册（上传接口：支持进度回调，取消超时限制避免大文件中断）
+const uploadConfig = (onProgress) => ({
+  headers: { 'Content-Type': 'multipart/form-data' },
+  timeout: 0,
+  onUploadProgress: onProgress
+})
 export const albumApi = {
   images: (params) => request.get('/api/images', { params }),
   videos: (params) => request.get('/api/videos', { params }),
-  uploadImage: (formData) => request.post('/api/images/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  uploadVideo: (formData) => request.post('/api/videos/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  uploadImageBatch: (formData) => request.post('/api/images/upload/batch', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  uploadVideoBatch: (formData) => request.post('/api/videos/upload/batch', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  uploadImage: (formData, onProgress) => request.post('/api/images/upload', formData, uploadConfig(onProgress)),
+  uploadVideo: (formData, onProgress) => request.post('/api/videos/upload', formData, uploadConfig(onProgress)),
+  uploadImageBatch: (formData, onProgress) => request.post('/api/images/upload/batch', formData, uploadConfig(onProgress)),
+  uploadVideoBatch: (formData, onProgress) => request.post('/api/videos/upload/batch', formData, uploadConfig(onProgress)),
   deleteImage: (id) => request.delete(`/api/images/${id}`),
   deleteVideo: (id) => request.delete(`/api/videos/${id}`),
   downloadImage: (id) => request.get(`/api/images/${id}/download`, { responseType: 'blob' })

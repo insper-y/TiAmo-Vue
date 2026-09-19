@@ -1,37 +1,19 @@
 <template>
   <div class="dashboard">
     <!-- 顶部导航 -->
-    <header class="top-header">
-      <div class="header-left">
-        <button v-if="activeTab !== 'home'" class="head-back" @click="setTab('home')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-          <span>返回</span>
-        </button>
-        <div class="logo">
-          <span class="logo-icon">🚀</span>
-          <span class="logo-text">Tiamo AI</span>
-        </div>
-      </div>
+    <AppHeader :show-back="activeTab !== 'home'" @back="setTab('home')" />
 
-      <!-- 图片/视频放大预览 -->
-      <div v-if="previewImg" class="img-preview-overlay" @click="previewImg = null">
-        <img :src="previewImg" class="img-preview" @click.stop />
-        <button class="img-preview-close" @click="previewImg = null">×</button>
-      </div>
-      <div v-if="previewVideo" class="img-preview-overlay" @click="previewVideo = null">
-        <video :src="previewVideo" class="video-preview" controls autoplay @click.stop></video>
-        <button class="img-preview-close" @click="previewVideo = null">×</button>
-      </div>
-      <div class="header-right">
-        <span class="user-name">{{ user?.username }}</span>
-        <span class="user-role" :class="isAdmin ? 'admin' : 'user'">
-          {{ isAdmin ? '管理员' : '普通用户' }}
-        </span>
-        <button class="logout-btn" @click="handleLogout">退出</button>
-      </div>
-    </header>
+    <!-- 图片/视频放大预览 -->
+    <div v-if="previewImg" class="img-preview-overlay" @click="closePreview">
+      <img :src="previewImg" class="img-preview" @click.stop />
+      <button class="img-preview-del" @click.stop="deleteFromPreview">删除</button>
+      <button class="img-preview-close" @click="closePreview">×</button>
+    </div>
+    <div v-if="previewVideo" class="img-preview-overlay" @click="closePreview">
+      <video :src="previewVideo" class="video-preview" controls autoplay @click.stop></video>
+      <button class="img-preview-del" @click.stop="deleteFromPreview">删除</button>
+      <button class="img-preview-close" @click="closePreview">×</button>
+    </div>
 
     <!-- 内容区 -->
     <main class="content">
@@ -250,6 +232,7 @@
               <span class="play-icon">▶</span>
             </div>
             <button class="album-del" title="删除" @click.stop="deleteAlbumItem(item)">×</button>
+            <span v-if="item.uploading" class="album-uploading">{{ '上传中 ' + (item.progress || 0) + '%' }}</span>
             <span v-if="item.transcoding" class="album-transcoding">转码中</span>
             <span class="album-type">{{ item.type === 'image' ? '图片' : '视频' }}</span>
           </div>
@@ -293,28 +276,8 @@
 
     </main>
 
-    <!-- 底部导航（手机端） -->
-    <nav class="bottom-nav">
-      <button class="nav-item" :class="{active: activeTab === 'home'}" @click="setTab('home')">
-        <span class="nav-icon">🏠</span>
-        <span class="nav-text">首页</span>
-      </button>
-      <button class="nav-item" :class="{active: activeTab === 'album'}" @click="setTab('album')">
-        <span class="nav-icon">🖼️</span>
-        <span class="nav-text">相册</span>
-      </button>
-      <button class="nav-item nav-add" @click="quickUpload">
-        <span class="nav-icon">➕</span>
-      </button>
-      <button class="nav-item" @click="goRoute('/logs')">
-        <span class="nav-icon">📋</span>
-        <span class="nav-text">操作日志</span>
-      </button>
-      <button class="nav-item" @click="goRoute('/run-log')">
-        <span class="nav-icon">⚙️</span>
-        <span class="nav-text">运行日志</span>
-      </button>
-    </nav>
+    <!-- 底部导航 -->
+    <BottomNav :active="navActive" @go="onNav" />
   </div>
 </template>
 
@@ -322,6 +285,8 @@
 import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Pagination from '../components/Pagination.vue'
+import AppHeader from '../components/AppHeader.vue'
+import BottomNav from '../components/BottomNav.vue'
 import { auth, toast, confirm, formatTime } from '../utils'
 import {
   userApi, bookApi, approvalApi, logApi, dbApi,
@@ -346,6 +311,22 @@ const setTab = (key) => {
   else query.tab = tab
   router.replace({ query })
   refreshTab(tab)
+}
+
+// 底部导航当前高亮项
+const navActive = computed(() => {
+  if (activeTab.value === 'home') return 'home'
+  if (activeTab.value === 'album') return 'album'
+  return ''
+})
+
+// 底部导航跳转
+const onNav = (key) => {
+  if (key === 'home') setTab('home')
+  else if (key === 'album') setTab('album')
+  else if (key === 'add') triggerUpload('image')
+  else if (key === 'logs') goRoute('/logs')
+  else if (key === 'runlog') goRoute('/run-log')
 }
 
 // 切换页签时刷新对应数据，保证内容最新
@@ -459,14 +440,6 @@ const exportItems = [
 ]
 
 // 方法
-const handleLogout = async () => {
-  const ok = await confirm('退出登录', '确定要退出登录吗？')
-  if (ok) {
-    auth.logout()
-    router.push('/login')
-  }
-}
-
 const loadRecentLogs = async () => {
   try {
     const res = await logApi.list({ page: 1, size: 5 })
@@ -642,10 +615,13 @@ const triggerUpload = async (type) => {
 // 底部导航“+”：快捷进入相册并选择图片上传
 const quickUpload = () => { triggerUpload('image') }
 
-// 上传成功后新条目去重合并，保证立刻显示
-const mergeUploadItems = (newItems) => {
-  const map = new Map(albumItems.value.map(it => [it.type + it.id, it]))
-  newItems.forEach(it => map.set(it.type + it.id, it))
+// 上传成功后，用服务器真实地址替换本地临时预览
+const replaceTempItems = (tempItems, realItems) => {
+  const tempIds = new Set(tempItems.map(t => t.id))
+  const rest = albumItems.value.filter(i => !tempIds.has(i.id))
+  tempItems.forEach(t => { if (t.url) URL.revokeObjectURL(t.url) })
+  const map = new Map(rest.map(it => [it.type + it.id, it]))
+  realItems.forEach(it => map.set(it.type + it.id, it))
   albumItems.value = Array.from(map.values())
     .sort((a, b) => new Date(b.createTime || 0) - new Date(a.createTime || 0))
 }
@@ -653,33 +629,49 @@ const mergeUploadItems = (newItems) => {
 const handleUpload = async (type, e) => {
   const files = Array.from(e.target.files || [])
   if (!files.length) return
+  // 先用本地 Blob 地址即时插入相册，无需等待上传完成即可看到内容
+  const tempItems = files.map((f, idx) => {
+    const url = URL.createObjectURL(f)
+    const tempId = -(Date.now() + idx)
+    const base = { type, id: tempId, name: f.name, createTime: new Date().toISOString(), uploading: true, progress: 0, url }
+    return type === 'image'
+      ? { ...base, thumb: url, full: url, transcoding: false }
+      : { ...base, thumb: '', playUrl: url, transcoding: false }
+  })
+  albumItems.value = [...tempItems, ...albumItems.value]
+  const updateProgress = (pe) => {
+    const pct = pe.total ? Math.min(99, Math.round((pe.loaded / pe.total) * 100)) : 0
+    tempItems.forEach(t => { t.progress = pct })
+  }
   const formData = new FormData()
   files.forEach(f => formData.append(files.length > 1 ? 'files' : 'file', f))
   try {
-    toast.info(`上传中（${files.length}个文件）...`)
-    let res
+    let realItems = []
     if (files.length > 1) {
-      res = type === 'image' ? await albumApi.uploadImageBatch(formData)
-                             : await albumApi.uploadVideoBatch(formData)
+      const res = type === 'image'
+        ? await albumApi.uploadImageBatch(formData, updateProgress)
+        : await albumApi.uploadVideoBatch(formData, updateProgress)
       const list = res?.data || []
       const okList = list.filter(r => r.success)
       if (!okList.length) throw new Error(res?.message || '上传失败')
-      mergeUploadItems(okList.map(r => type === 'image' ? toImageItem(r.data) : toVideoItem(r.data)))
+      realItems = okList.map(r => type === 'image' ? toImageItem(r.data) : toVideoItem(r.data))
       if (okList.length < files.length) toast.warning(`成功${okList.length}个，失败${files.length - okList.length}个`)
       else toast.success('上传成功')
     } else {
-      res = type === 'image' ? await albumApi.uploadImage(formData)
-                             : await albumApi.uploadVideo(formData)
+      const res = type === 'image'
+        ? await albumApi.uploadImage(formData, updateProgress)
+        : await albumApi.uploadVideo(formData, updateProgress)
       const map = res?.data
-      const entity = map?.data
       if (!map || map.success === false) throw new Error(map?.message || '上传失败')
-      if (entity) mergeUploadItems([type === 'image' ? toImageItem(entity) : toVideoItem(entity)])
+      if (map.data) realItems = [type === 'image' ? toImageItem(map.data) : toVideoItem(map.data)]
       toast.success('上传成功')
     }
+    replaceTempItems(tempItems, realItems)
     // 视频需后端转码/生成封面，稍后再拉取一次以获得封面与压缩版地址
-    setTimeout(loadAlbum, type === 'video' ? 6000 : 1500)
+    if (type === 'video') setTimeout(loadAlbum, 6000)
   } catch (err) {
-    toast.error(err?.message || '上传失败')
+    replaceTempItems(tempItems, [])
+    toast.error(err?.response?.data?.message || err?.message || '上传失败')
   }
   e.target.value = ''
 }
@@ -814,6 +806,13 @@ onMounted(() => {
   loadAlbum()
   // 刷新后若停留在非首页页签，补拉该页签数据
   if (activeTab.value !== 'home') refreshTab(activeTab.value)
+  // 从其他页面点底部导航“+”跳转过来时，直接打开文件选择
+  if (route.query.upload === '1') {
+    const q = { ...route.query }
+    delete q.upload
+    router.replace({ query: q })
+    triggerUpload('image')
+  }
 })
 </script>
 
@@ -821,109 +820,7 @@ onMounted(() => {
 .dashboard {
   min-height: 100vh;
   background: #f8fafc;
-  padding-bottom: 70px;
-}
-.top-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 20px;
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.logo-icon { font-size: 24px; }
-.head-back {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: #475569;
-  cursor: pointer;
-  min-height: 36px;
-}
-.head-back:active { background: #e2e8f0; }
-.header-left { display: flex; align-items: center; gap: 10px; }
-.logo-text {
-  font-size: 18px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.user-name { font-size: 14px; font-weight: 500; color: #1e293b; }
-.user-role {
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-}
-.user-role.admin { background: #eef2ff; color: #6366f1; }
-.user-role.user { background: #f0fdf4; color: #10b981; }
-.logout-btn {
-  padding: 6px 12px;
-  background: #fef2f2;
-  color: #ef4444;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.tab-bar {
-  display: flex;
-  gap: 6px;
-  padding: 10px 16px;
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.tab-bar::-webkit-scrollbar { display: none; }
-.tab-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 14px;
-  background: #f1f5f9;
-  border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  color: #64748b;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s;
-  min-height: 38px;
-}
-.tab-btn.active {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: white;
-  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
-}
-.tab-icon { font-size: 14px; }
-.tab-badge {
-  background: #ef4444;
-  color: white;
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 8px;
-  min-width: 16px;
-  text-align: center;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
 }
 .content { padding: 16px; }
 .view-header {
@@ -1119,6 +1016,17 @@ onMounted(() => {
   padding: 2px 6px;
   border-radius: 6px;
 }
+.album-uploading {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(99,102,241,0.85);
+  color: white;
+  font-size: 9px;
+  padding: 2px 4px;
+  text-align: center;
+}
 .img-preview-del {
   position: absolute;
   bottom: 28px;
@@ -1228,78 +1136,10 @@ onMounted(() => {
 }
 
 /* 日志入口 */
-.logs-entry { display: flex; flex-direction: column; gap: 12px; }
-.entry-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px;
-  background: white;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.entry-card:active { transform: scale(0.98); }
-.entry-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-.entry-info { flex: 1; }
-.entry-info h3 { font-size: 15px; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
-.entry-info p { font-size: 12px; color: #94a3b8; }
-.entry-arrow { font-size: 20px; color: #cbd5e1; }
-
-/* 底部导航 */
-.bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  background: white;
-  border-top: 1px solid #e2e8f0;
-  padding: 8px 0;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom));
-  z-index: 200;
-}
-.nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 6px;
-  color: #94a3b8;
-  transition: all 0.2s;
-}
-.nav-item.active { color: #6366f1; }
-.nav-icon { font-size: 20px; }
-.nav-text { font-size: 10px; white-space: nowrap; }
-.nav-add {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  border-radius: 50%;
-  color: white;
-  margin-top: -20px;
-  box-shadow: 0 4px 12px rgba(99,102,241,0.4);
-}
-.nav-add .nav-icon { font-size: 24px; }
 
 /* 电脑端适配 */
 @media (min-width: 769px) {
-  .bottom-nav { display: none; }
-  .dashboard { padding-bottom: 0; }
+    .dashboard { padding-bottom: 0; }
   .function-grid { grid-template-columns: repeat(6, 1fr); }
   .album-grid { grid-template-columns: repeat(6, 1fr); }
 }
