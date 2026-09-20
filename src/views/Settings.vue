@@ -311,13 +311,13 @@ const logEmailTo = ref('')
 const saveLogEmailConfig = async () => {
   emailLoading.value = true
   try {
-    // 合并保存到系统设置
-    const res = await systemApi.saveSettings({
-      emailRealtimeEnabled: settings.emailRealtimeEnabled,
-      logEmailTo: logEmailTo.value,
-      logEmailRunEnabled: logEmail.runLogEnabled,
-      logEmailOpEnabled: logEmail.opLogEnabled,
-      logEmailSendTime: logEmail.sendTime
+    // 保存到邮件配置接口
+    const res = await configApi.updateEmail({
+      realtimeEnabled: settings.emailRealtimeEnabled,
+      to: logEmailTo.value,
+      runLogEnabled: logEmail.runLogEnabled,
+      opLogEnabled: logEmail.opLogEnabled,
+      sendTime: logEmail.sendTime
     })
     if (res.code === 200) toast.success('推送配置已保存')
     else toast.error(res.msg || '保存失败')
@@ -586,6 +586,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
