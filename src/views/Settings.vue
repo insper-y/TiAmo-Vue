@@ -328,6 +328,20 @@ const saveLogEmailConfig = async () => {
   }
 }
 
+
+const loadLogEmailConfig = async () => {
+  try {
+    const res = await configApi.getEmail()
+    if (res.code === 200 && res.data) {
+      const d = res.data
+      settings.emailRealtimeEnabled = d.realtimeEnabled !== false
+      logEmailTo.value = d.to || ''
+      logEmail.runLogEnabled = d.runLogEnabled === true || d.runLogEnabled === 'true'
+      logEmail.opLogEnabled = d.opLogEnabled === true || d.opLogEnabled === 'true'
+      logEmail.sendTime = d.sendTime || '08:00'
+    }
+  } catch (e) { /* 忽略加载失败 */ }
+}
 /* ---------- 清理策略 ---------- */
 const settings = reactive({
   opLogEnabled: true, opLogDays: 30,
@@ -421,6 +435,7 @@ const loadAll = () => {
   loadSettings()
   loadPreview()
   loadPermissions()
+  loadLogEmailConfig()
 }
 
 onMounted(loadAll)
@@ -586,6 +601,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
