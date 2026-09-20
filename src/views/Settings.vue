@@ -195,6 +195,16 @@
           </button>
           <input ref="restoreInput" type="file" accept=".zip" style="display:none" @change="handleRestore" />
           
+          <div style="height:16px;"></div>
+          <div style="border-top:1px solid #f1f5f9;padding-top:16px;">
+            <button class="btn btn-block" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;" :disabled="resetLoading" @click="handleReset">
+              {{ resetLoading ? '重置中…' : '⚠️ 重置系统（清空所有数据）' }}
+            </button>
+            <p style="font-size:12px;color:#94a3b8;margin:8px 0 0 0;text-align:center;">
+              清空所有相册、视频、商品等业务数据，保留管理员账号
+            </p>
+          </div>
+          
           <div v-if="backupInfo" style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:var(--text-secondary);">
             <div>数据库大小: {{ backupInfo.dbSize }}</div>
             <div>上传文件: {{ backupInfo.uploadSize }}</div>
@@ -227,6 +237,7 @@ const goBack = () => {
 /* ---------- 备份与恢复 ---------- */
 const backupLoading = ref(false)
 const restoreLoading = ref(false)
+const resetLoading = ref(false)
 const restoreInput = ref(null)
 const backupInfo = ref(null)
 
@@ -304,6 +315,40 @@ const handleRestore = async (e) => {
   } finally {
     restoreLoading.value = false
     e.target.value = ''
+  }
+}
+
+const handleReset = async () => {
+  const ok = await confirm('重置系统', 
+    '即将清空所有业务数据（相册、视频、商品、日志等）。\n\n' +
+    '此操作不可恢复，建议先备份！\n\n' +
+    '确定要继续吗？', 
+    'danger'
+  )
+  if (!ok) return
+  
+  // 二次确认
+  const ok2 = await confirm('最后确认', '真的要清空所有数据吗？再点一次确认就会清空。', 'danger')
+  if (!ok2) return
+  
+  resetLoading.value = true
+  try {
+    const token = localStorage.getItem('tiamo_token') || ''
+    const res = await fetch('/api/system/reset', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    const data = await res.json()
+    if (data.code === 200) {
+      toast.success('系统重置成功！')
+      setTimeout(() => window.location.reload(), 1500)
+    } else {
+      toast.error(data.msg || '重置失败')
+    }
+  } catch (e) {
+    toast.error('重置失败：' + (e.message || '未知错误'))
+  } finally {
+    resetLoading.value = false
   }
 }
 
@@ -637,6 +682,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
