@@ -326,21 +326,22 @@ html, body {
   bottom: 0;
   background: rgba(0,0,0,0.5);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   z-index: 2000;
-  padding: 0;
+  padding: 20px;
   animation: fadeIn 0.2s ease;
 }
 .modal {
   background: var(--bg-card);
-  border-radius: 20px 20px 0 0;
+  border-radius: 20px;
   padding: 20px;
   width: 100%;
-  max-width: 100% !important;
+  max-width: 400px;
   max-height: 85vh;
   overflow-y: auto;
-  animation: slideUp 0.3s ease;
+  animation: zoomIn 0.25s ease;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
 }
 .modal-header {
   display: flex;
@@ -379,6 +380,17 @@ html, body {
   border-top: 1px solid var(--border);
 }
 .modal-footer button { flex: 1; }
+
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
 @keyframes slideUp {
   from { transform: translateY(100%); }
@@ -476,3 +488,4 @@ html, body {
     font-size: 12px;
   }
 }
+
