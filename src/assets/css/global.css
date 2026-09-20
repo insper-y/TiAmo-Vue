@@ -35,13 +35,14 @@ html, body {
 
 /* 通用按钮 */
 .btn {
-  padding: 8px 14px;
+  padding: 12px 20px;
   background: var(--bg-card);
   color: var(--text-primary);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 500;
   transition: all 0.2s;
   white-space: nowrap;
   font-family: inherit;
@@ -49,17 +50,38 @@ html, body {
 .btn:hover { background: var(--bg-hover); border-color: var(--primary); }
 .btn:active { transform: scale(0.97); }
 .btn-primary {
-  background: var(--primary);
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   color: white;
-  border-color: var(--primary);
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
-.btn-primary:hover { background: #4f46e5; }
+.btn-primary:hover { 
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
 .btn-danger {
   background: var(--error);
   color: white;
   border-color: var(--error);
 }
 .btn-danger:hover { background: #dc2626; }
+.btn-block {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 16px;
+}
 .btn-success {
   background: var(--success);
   color: white;
@@ -488,4 +510,5 @@ html, body {
     font-size: 12px;
   }
 }
+
 
