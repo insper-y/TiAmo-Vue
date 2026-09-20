@@ -297,6 +297,7 @@ const logEmail = reactive({
   sendTime: '08:00'
 })
 const logEmailTo = ref('')
+const emailLoading = ref(false)
 
 
 const saveLogEmailConfig = async () => {
@@ -591,6 +592,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
