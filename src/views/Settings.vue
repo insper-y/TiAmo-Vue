@@ -56,6 +56,45 @@
         </div>
       </section>
 
+
+      <!-- 邮件配置 -->
+      <section class="card" id="email-section">
+        <div class="card-head">
+          <h2>📧 邮件配置</h2>
+        </div>
+        <div class="card-body">
+          <label class="form-label">SMTP 服务器</label>
+          <input v-model="emailConfig.host" class="input" placeholder="如 smtp.qq.com" />
+
+          <label class="form-label">SMTP 端口</label>
+          <input v-model.number="emailConfig.port" type="number" class="input" placeholder="如 465" />
+
+          <label class="form-label">发件人邮箱</label>
+          <input v-model="emailConfig.username" class="input" placeholder="如 xxx@qq.com" />
+
+          <label class="form-label">邮箱授权码/密码</label>
+          <input v-model="emailConfig.password" type="password" class="input" placeholder="请输入授权码" />
+
+          <label class="form-label">发件人名称</label>
+          <input v-model="emailConfig.fromName" class="input" placeholder="如 TiAmo 数据" />
+
+          <div class="switch-row">
+            <div>
+              <div class="switch-title">启用 SSL</div>
+              <div class="switch-desc">465 端口建议开启 SSL</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" v-model="emailConfig.sslEnabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <button class="btn-primary btn-block" :disabled="emailLoading" @click="saveEmailConfig">
+            {{ emailLoading ? '保存中…' : '保存邮件配置' }}
+          </button>
+        </div>
+      </section>
+
       <!-- 日志定期清理 -->
       <section class="card">
         <div class="card-head">
@@ -167,7 +206,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import BottomNav from '../components/BottomNav.vue'
-import { systemApi } from '../api'
+import { systemApi, configApi } from '../api'
 import { auth, toast, confirm } from '../utils'
 
 const router = useRouter()
@@ -243,6 +282,42 @@ const changePassword = async () => {
     toast.error(e?.response?.data?.msg || '密码修改失败')
   } finally {
     pwdLoading.value = false
+  }
+}
+
+
+/* ---------- 邮件配置 ---------- */
+const emailConfig = reactive({
+  host: '',
+  port: 465,
+  username: '',
+  password: '',
+  fromName: '',
+  sslEnabled: true
+})
+const emailLoading = ref(false)
+
+const loadEmailConfig = async () => {
+  try {
+    const res = await configApi.getEmail()
+    if (res.code === 200 && res.data) Object.assign(emailConfig, res.data)
+  } catch (e) { /* 忽略 */ }
+}
+
+const saveEmailConfig = async () => {
+  if (!emailConfig.host || !emailConfig.username) {
+    toast.warning('请填写完整的邮件配置')
+    return
+  }
+  emailLoading.value = true
+  try {
+    const res = await configApi.updateEmail({ ...emailConfig })
+    if (res.code === 200) toast.success('邮件配置已保存')
+    else toast.error(res.msg || '保存失败')
+  } catch (e) {
+    toast.error(e?.response?.data?.msg || '保存失败')
+  } finally {
+    emailLoading.value = false
   }
 }
 
@@ -504,3 +579,5 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
+
