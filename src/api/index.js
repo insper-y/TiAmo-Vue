@@ -137,6 +137,7 @@ export const runLogApi = {
 
 // 系统设置
 export const systemApi = {
+  backupInfo: () => request.get('/api/system/backup/info'),
   profile: () => request.get('/api/system/profile'),
   changePassword: (data) => request.post('/api/system/change-password', data),
   getSettings: () => request.get('/api/system/settings'),
@@ -206,3 +207,4 @@ export const chunkApi = {
   status: (qid) => request.get(`/api/chunk/status/${qid}`, { timeout: 15000 }),
   merge: (payload) => request.post('/api/chunk/merge', payload, { timeout: 120000 })
 }
+

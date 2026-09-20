@@ -196,6 +196,89 @@ const goBack = () => {
   else router.push('/dashboard')
 }
 
+/* ---------- 备份与恢复 ---------- */
+const backupLoading = ref(false)
+const restoreLoading = ref(false)
+const restoreInput = ref(null)
+const backupInfo = ref(null)
+
+const loadBackupInfo = async () => {
+  try {
+    const res = await systemApi.backupInfo()
+    if (res.code === 200) backupInfo.value = res.data
+  } catch (e) { /* 忽略 */ }
+}
+
+const handleBackup = async () => {
+  backupLoading.value = true
+  try {
+    // 获取 token
+    const token = localStorage.getItem('token') || ''
+    // 直接用 window.location 下载
+    const a = document.createElement('a')
+    a.href = '/api/system/backup'
+    // 不能直接用 a 标签下载，因为需要带 token
+    // 用 fetch + blob
+    const res = await fetch('/api/system/backup', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    if (!res.ok) throw new Error('备份失败')
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const downloadA = document.createElement('a')
+    downloadA.href = url
+    downloadA.download = 'tiamo_backup_' + new Date().toISOString().slice(0,10) + '.zip'
+    document.body.appendChild(downloadA)
+    downloadA.click()
+    document.body.removeChild(downloadA)
+    window.URL.revokeObjectURL(url)
+    toast.success('备份完成，已开始下载')
+  } catch (e) {
+    toast.error('备份失败：' + (e.message || '未知错误'))
+  } finally {
+    backupLoading.value = false
+  }
+}
+
+const triggerRestore = () => {
+  restoreInput.value?.click()
+}
+
+const handleRestore = async (e) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+  
+  const ok = await confirm('恢复系统', `即将恢复系统到备份时的状态，当前数据将被覆盖。\n\n确定继续吗？`, 'danger')
+  if (!ok) {
+    e.target.value = ''
+    return
+  }
+  
+  restoreLoading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const token = localStorage.getItem('token') || ''
+    const res = await fetch('/api/system/restore', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData
+    })
+    const data = await res.json()
+    if (data.code === 200) {
+      toast.success('恢复成功！')
+      setTimeout(() => window.location.reload(), 1500)
+    } else {
+      toast.error(data.msg || '恢复失败')
+    }
+  } catch (e) {
+    toast.error('恢复失败：' + (e.message || '未知错误'))
+  } finally {
+    restoreLoading.value = false
+    e.target.value = ''
+  }
+}
+
 const onNav = (key) => {
   if (key === 'home') router.push('/dashboard')
   else if (key === 'album') router.push('/dashboard?tab=album')
@@ -360,6 +443,7 @@ const loadAll = () => {
   loadPreview()
   loadPermissions()
   loadLogEmailConfig()
+  loadBackupInfo()
 }
 
 onMounted(loadAll)
@@ -525,6 +609,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
