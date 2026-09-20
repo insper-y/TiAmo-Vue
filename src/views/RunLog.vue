@@ -116,7 +116,7 @@ const nginxType = ref('access')
 const lines = ref(200)
 const keyword = ref('')
 const loading = ref(false)
-const autoRefresh = ref(false)
+const autoRefresh = ref(true)
 const logLines = ref([])
 const meta = reactive({ path: '', returnedLines: 0, readAt: '', sizeMB: '0' })
 const fileInfo = reactive({ springboot: null, 'nginx-access': null, 'nginx-error': null })
@@ -251,6 +251,9 @@ onMounted(() => {
   loadServerStatus()
   loadFiles()
   loadCurrent()
+  // 默认开启自动刷新
+  autoRefresh.value = true
+  refreshTimer = setInterval(() => { loadCurrent(); loadServerStatus() }, 10000)
 })
 
 onUnmounted(() => {
@@ -494,4 +497,5 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 </style>
+
 
