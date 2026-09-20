@@ -31,12 +31,14 @@
         <label>类型</label>
         <select class="select" v-model="filters.type" @change="loadLogs">
           <option value="">全部</option>
-          <option value="LOGIN">登录</option>
-          <option value="QUERY">查询</option>
-          <option value="CREATE">新增</option>
-          <option value="UPDATE">修改</option>
-          <option value="DELETE">删除</option>
-          <option value="EXPORT">导出</option>
+          <option value="LOGIN">登录/登出</option>
+          <option value="QUERY">查询/查看</option>
+          <option value="CREATE">新增/上传</option>
+          <option value="UPDATE">修改/更新</option>
+          <option value="DELETE">删除/清空</option>
+          <option value="EXPORT">导出/发送</option>
+          <option value="IMPORT">导入/恢复</option>
+          <option value="CONFIG">配置/设置</option>
           <option value="OTHER">其他</option>
         </select>
       </div>
@@ -172,9 +174,7 @@ const filters = reactive({
 })
 
 // 与后端 @OperationLog(module=...) 中出现的模块名保持一致
-const modules = ['认证管理', '用户管理', '商品管理', '回收站', '数据库管理', '数据导出',
-                 '邮件配置', '系统配置', '相册管理', '图片管理', '视频管理',
-                 '日志管理', '操作日志', '运行日志', '系统设置']
+const modules = ['认证管理', '用户管理', '商品管理', '相册管理', '回收站', '审批管理', '数据库管理', '数据导出', '系统设置', '日志管理']
 
 const loadLogs = async () => {
   loading.value = true
@@ -315,3 +315,4 @@ onUnmounted(() => {
   white-space: pre-wrap;
 }
 </style>
+
