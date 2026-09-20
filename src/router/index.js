@@ -63,7 +63,7 @@ const router = createRouter({
 
 // 路由守卫：未登录 / Token 已过期 → 一律重定向到登录页，并记住原本要去的地址
 router.beforeEach((to, from, next) => {
-  document.title = to.meta.title ? `${to.meta.title} - Tiamo AI` : 'Tiamo AI'
+  document.title = to.meta.title ? `${to.meta.title} - TiAmo 数据` : 'TiAmo 数据'
 
   const loggedIn = auth.isAuthenticated()
 
