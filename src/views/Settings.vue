@@ -215,14 +215,31 @@
           </div>
           
           <!-- 重置密码确认弹窗 -->
-          <div v-if="showResetPwd" class="modal-overlay" @click.self="showResetPwd = false">
-            <div class="modal-content">
-              <h3 style="margin:0 0 16px 0;color:#1e293b;">确认重置系统</h3>
-              <p style="color:#64748b;font-size:14px;margin:0 0 16px 0;">
-                请输入当前管理员密码以确认重置：
+          <div v-if="showResetPwd" style="
+            position:fixed;
+            top:0;left:0;right:0;bottom:0;
+            background:rgba(0,0,0,0.5);
+            z-index:9999;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:20px;
+          " @click.self="showResetPwd = false">
+            <div style="
+              background:white;
+              border-radius:20px;
+              padding:32px 24px;
+              width:100%;
+              max-width:360px;
+              box-shadow:0 20px 60px rgba(0,0,0,0.3);
+              animation:modalIn 0.2s ease-out;
+            ">
+              <h3 style="margin:0 0 12px 0;color:#1e293b;font-size:20px;text-align:center;">确认重置系统</h3>
+              <p style="color:#64748b;font-size:14px;margin:0 0 20px 0;text-align:center;">
+                请输入当前管理员密码以确认重置
               </p>
               <input v-model="resetPwd" type="password" placeholder="请输入当前管理员密码" 
-                style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:12px;font-size:16px;outline:none;box-sizing:border-box;margin-bottom:16px;"
+                style="width:100%;padding:14px;border:1px solid #e2e8f0;border-radius:12px;font-size:16px;outline:none;box-sizing:border-box;margin-bottom:20px;"
                 @keyup.enter="confirmReset"
               />
               <div style="display:flex;gap:12px;">
@@ -729,6 +746,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 

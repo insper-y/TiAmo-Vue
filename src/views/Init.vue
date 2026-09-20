@@ -58,7 +58,7 @@ const handleInit = async () => {
   
   loading.value = true
   try {
-    const res = await fetch('/api/system/init', {
+    const res = await fetch('/api/auth/init', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -162,4 +162,5 @@ input:focus {
   transform: none;
 }
 </style>
+
 
