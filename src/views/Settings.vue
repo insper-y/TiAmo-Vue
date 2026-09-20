@@ -95,6 +95,58 @@
         </div>
       </section>
 
+
+      <!-- 日志邮件推送 -->
+      <section class="card">
+        <div class="card-head">
+          <h2>📬 日志邮件推送</h2>
+        </div>
+        <div class="card-body">
+          <div class="switch-row">
+            <div>
+              <div class="switch-title">操作日志实时推送</div>
+              <div class="switch-desc">有新操作时立即发送邮件通知</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" v-model="settings.emailRealtimeEnabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <label class="form-label">接收邮箱地址</label>
+          <input v-model="logEmailTo" class="input" placeholder="接收日志的邮箱地址" />
+
+          <div class="switch-row">
+            <div>
+              <div class="switch-title">定时发送运行日志</div>
+              <div class="switch-desc">每日定时发送运行日志摘要</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" v-model="logEmail.runLogEnabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="switch-row">
+            <div>
+              <div class="switch-title">定时发送操作日志</div>
+              <div class="switch-desc">每日定时发送操作日志摘要</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" v-model="logEmail.opLogEnabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <label class="form-label">每日发送时间</label>
+          <input v-model="logEmail.sendTime" type="time" class="input" />
+
+          <button class="btn-primary btn-block" :disabled="emailLoading" @click="saveLogEmailConfig">
+            {{ emailLoading ? '保存中…' : '保存推送配置' }}
+          </button>
+        </div>
+      </section>
+
       <!-- 日志定期清理 -->
       <section class="card">
         <div class="card-head">
@@ -286,6 +338,15 @@ const changePassword = async () => {
 }
 
 
+
+/* ---------- 日志邮件推送 ---------- */
+const logEmail = reactive({
+  runLogEnabled: false,
+  opLogEnabled: false,
+  sendTime: '08:00'
+})
+const logEmailTo = ref('')
+
 /* ---------- 邮件配置 ---------- */
 const emailConfig = reactive({
   host: '',
@@ -313,6 +374,27 @@ const saveEmailConfig = async () => {
   try {
     const res = await configApi.updateEmail({ ...emailConfig })
     if (res.code === 200) toast.success('邮件配置已保存')
+    else toast.error(res.msg || '保存失败')
+  } catch (e) {
+    toast.error(e?.response?.data?.msg || '保存失败')
+  } finally {
+    emailLoading.value = false
+  }
+}
+
+
+const saveLogEmailConfig = async () => {
+  emailLoading.value = true
+  try {
+    // 合并保存到系统设置
+    const res = await systemApi.saveSettings({
+      emailRealtimeEnabled: settings.emailRealtimeEnabled,
+      logEmailTo: logEmailTo.value,
+      logEmailRunEnabled: logEmail.runLogEnabled,
+      logEmailOpEnabled: logEmail.opLogEnabled,
+      logEmailSendTime: logEmail.sendTime
+    })
+    if (res.code === 200) toast.success('推送配置已保存')
     else toast.error(res.msg || '保存失败')
   } catch (e) {
     toast.error(e?.response?.data?.msg || '保存失败')
@@ -579,5 +661,6 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
