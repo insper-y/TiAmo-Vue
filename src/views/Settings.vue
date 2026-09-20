@@ -173,6 +173,34 @@
           </div>
         </div>
       </section>
+
+      <!-- 系统备份与恢复 -->
+      <section class="card">
+        <div class="card-head">
+          <h2>💾 系统备份与恢复</h2>
+        </div>
+        <div class="card-body">
+          <p style="color:var(--text-secondary);font-size:13px;line-height:1.6;margin:0 0 16px 0;">
+            备份将导出数据库和上传的图片/视频文件，恢复时上传备份包即可还原系统。
+          </p>
+          
+          <button class="btn-primary btn-block" :disabled="backupLoading" @click="handleBackup">
+            {{ backupLoading ? '备份中…' : '📥 备份并下载数据' }}
+          </button>
+          
+          <div style="height:12px;"></div>
+          
+          <button class="btn-danger btn-block" :disabled="restoreLoading" @click="triggerRestore">
+            {{ restoreLoading ? '恢复中…' : '📤 上传备份恢复系统' }}
+          </button>
+          <input ref="restoreInput" type="file" accept=".zip" style="display:none" @change="handleRestore" />
+          
+          <div v-if="backupInfo" style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:var(--text-secondary);">
+            <div>数据库大小: {{ backupInfo.dbSize }}</div>
+            <div>上传文件: {{ backupInfo.uploadSize }}</div>
+          </div>
+        </div>
+      </section>
     </template>
 
     <BottomNav active="" @go="onNav" />
@@ -609,6 +637,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
