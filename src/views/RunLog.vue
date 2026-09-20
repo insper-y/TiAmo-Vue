@@ -188,7 +188,7 @@ const loadCurrent = async () => {
       : await runLogApi.nginx({ ...params, type: nginxType.value })
 
     if (res.code === 200 && res.data) {
-      logLines.value = (res.data.lines || []).reverse()
+      logLines.value = res.data.lines || []
       meta.path = res.data.path || ''
       meta.returnedLines = res.data.returnedLines || 0
       meta.readAt = res.data.readAt || ''
@@ -497,5 +497,6 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 </style>
+
 
 
