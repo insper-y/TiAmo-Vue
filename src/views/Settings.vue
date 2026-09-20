@@ -31,31 +31,6 @@
         </div>
       </section>
 
-      <!-- 修改管理员密码 -->
-      <section class="card">
-        <div class="card-head">
-          <h2>🔑 修改管理员密码</h2>
-        </div>
-        <div class="card-body">
-          <label class="form-label">当前密码</label>
-          <input v-model="pwdForm.oldPassword" type="password" class="input" placeholder="请输入当前密码" autocomplete="current-password" />
-
-          <label class="form-label">新密码</label>
-          <input v-model="pwdForm.newPassword" type="password" class="input" placeholder="至少8位，需同时包含字母和数字" autocomplete="new-password" />
-
-          <label class="form-label">确认新密码</label>
-          <input v-model="pwdForm.confirmPassword" type="password" class="input" placeholder="再次输入新密码" autocomplete="new-password" />
-
-          <div class="pwd-strength" v-if="pwdForm.newPassword">
-            强度：<strong :style="{color: strengthColor}">{{ strengthText }}</strong>
-          </div>
-
-          <button class="btn-primary btn-block" :disabled="pwdLoading" @click="changePassword">
-            {{ pwdLoading ? '提交中…' : '确认修改密码' }}
-          </button>
-        </div>
-      </section>
-
 <!-- 日志邮件推送 -->
       <section class="card">
         <div class="card-head">
@@ -244,48 +219,6 @@ const formatTs = (ts) => {
   const d = new Date(Number(ts))
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
-
-/* ---------- 修改密码 ---------- */
-const pwdForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
-const pwdLoading = ref(false)
-
-const strength = computed(() => {
-  const v = pwdForm.newPassword || ''
-  let score = 0
-  if (v.length >= 8) score++
-  if (v.length >= 12) score++
-  if (/[A-Za-z]/.test(v) && /\d/.test(v)) score++
-  if (/[^A-Za-z0-9]/.test(v)) score++
-  return score
-})
-const strengthText = computed(() => ['太短', '弱', '中', '强', '很强'][strength.value] || '-')
-const strengthColor = computed(() => ['#ef4444', '#ef4444', '#f59e0b', '#10b981', '#059669'][strength.value] || '#94a3b8')
-
-const changePassword = async () => {
-  if (!pwdForm.oldPassword) { toast.warning('请输入当前密码'); return }
-  if (!pwdForm.newPassword || pwdForm.newPassword.length < 8) { toast.warning('新密码至少8位'); return }
-  if (pwdForm.newPassword !== pwdForm.confirmPassword) { toast.error('两次输入的新密码不一致'); return }
-
-  const ok = await confirm('修改密码', '修改后当前登录状态仍然有效，但请牢记新密码。确定继续吗？', 'primary')
-  if (!ok) return
-
-  pwdLoading.value = true
-  try {
-    const res = await systemApi.changePassword({ ...pwdForm })
-    if (res.code === 200) {
-      toast.success(res.msg || '密码修改成功')
-      pwdForm.oldPassword = ''
-      pwdForm.newPassword = ''
-      pwdForm.confirmPassword = ''
-    } else {
-      toast.error(res.msg || '密码修改失败')
-    }
-  } catch (e) {
-    toast.error(e?.response?.data?.msg || '密码修改失败')
-  } finally {
-    pwdLoading.value = false
-  }
 }
 
 
@@ -592,6 +525,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
