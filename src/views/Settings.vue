@@ -201,8 +201,28 @@
               {{ resetLoading ? '重置中…' : '⚠️ 重置系统（清空所有数据）' }}
             </button>
             <p style="font-size:12px;color:#94a3b8;margin:8px 0 0 0;text-align:center;">
-              清空所有相册、视频、商品等业务数据，保留管理员账号
+              清空所有相册、视频、商品、管理员账号等全部数据
             </p>
+          </div>
+          
+          <!-- 重置密码确认弹窗 -->
+          <div v-if="showResetPwd" class="modal-overlay" @click.self="showResetPwd = false">
+            <div class="modal-content">
+              <h3 style="margin:0 0 16px 0;color:#1e293b;">确认重置系统</h3>
+              <p style="color:#64748b;font-size:14px;margin:0 0 16px 0;">
+                请输入当前管理员密码以确认重置：
+              </p>
+              <input v-model="resetPwd" type="password" placeholder="请输入当前管理员密码" 
+                style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:12px;font-size:16px;outline:none;box-sizing:border-box;margin-bottom:16px;"
+                @keyup.enter="confirmReset"
+              />
+              <div style="display:flex;gap:12px;">
+                <button class="btn" style="flex:1;background:#f1f5f9;color:#64748b;" @click="showResetPwd = false">取消</button>
+                <button class="btn" style="flex:1;background:#dc2626;color:white;" :disabled="resetLoading" @click="confirmReset">
+                  {{ resetLoading ? '重置中…' : '确认重置' }}
+                </button>
+              </div>
+            </div>
           </div>
           
           <div v-if="backupInfo" style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:var(--text-secondary);">
@@ -318,28 +338,43 @@ const handleRestore = async (e) => {
   }
 }
 
+const resetPwd = ref('')
+const showResetPwd = ref(false)
+
 const handleReset = async () => {
   const ok = await confirm('重置系统', 
-    '即将清空所有业务数据（相册、视频、商品、日志等）。\n\n' +
+    '即将清空所有数据（相册、视频、商品、日志、管理员账号等）。\n\n' +
     '此操作不可恢复，建议先备份！\n\n' +
     '确定要继续吗？', 
     'danger'
   )
   if (!ok) return
   
-  // 二次确认
-  const ok2 = await confirm('最后确认', '真的要清空所有数据吗？再点一次确认就会清空。', 'danger')
-  if (!ok2) return
+  // 弹出密码输入
+  showResetPwd.value = true
+  resetPwd.value = ''
+}
+
+const confirmReset = async () => {
+  if (!resetPwd.value) {
+    toast.error('请输入当前管理员密码')
+    return
+  }
   
   resetLoading.value = true
   try {
     const token = localStorage.getItem('tiamo_token') || ''
     const res = await fetch('/api/system/reset', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + token }
+      headers: { 
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ password: resetPwd.value })
     })
     const data = await res.json()
     if (data.code === 200) {
+      showResetPwd.value = false
       toast.success('系统重置成功！即将跳转到初始化页面')
       setTimeout(() => window.location.href = '/init', 2000)
     } else {
@@ -682,6 +717,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
