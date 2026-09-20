@@ -369,7 +369,6 @@ const quickFunctions = computed(() => [
   { key: 'recycle', name: '回收站', icon: '🗑️', bg: 'linear-gradient(135deg,#f59e0b,#f97316)' },
   { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' },
   { key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' },
-  { key: 'email', name: '邮件配置', route: '/settings?scroll=email', icon: '📧', bg: 'linear-gradient(135deg,#f43f5e,#e11d48)' },
   { key: 'oplog', name: '操作日志', route: '/logs', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
   { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' },
   // 系统设置仅管理员可见
@@ -1346,3 +1345,4 @@ onUnmounted(() => {
   margin-bottom: 12px; grid-template-columns: repeat(6, 1fr); }
 }
 </style>
+
