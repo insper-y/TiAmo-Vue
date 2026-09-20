@@ -597,7 +597,9 @@ const toVideoItem = (v) => ({
   transcoding: v.status === 0
 })
 
-const loadAlbum = async () => {
+const albumLoaded = ref(false)
+const loadAlbum = async (force = false) => {
+  if (albumLoaded.value && !force) return // 已加载过就不重复请求
   try {
     const [imgRes, vidRes] = await Promise.all([
       albumApi.images({ page: 1, size: 100 }),
@@ -609,6 +611,7 @@ const loadAlbum = async () => {
     items.sort((a, b) => new Date(b.createTime || 0) - new Date(a.createTime || 0))
     const pendingTemps = albumItems.value.filter(i => i.uploading || i.failed)
     albumItems.value = [...pendingTemps, ...items]
+    albumLoaded.value = true
   } catch (e) { toast.error('加载相册失败') }
 }
 
@@ -672,7 +675,7 @@ const tryUpload = async (record, temp) => {
     const real = map.data ? [record.type === 'image' ? toImageItem(map.data) : toVideoItem(map.data)] : []
     replaceTempItems([temp], real)
     await removePending(record.qid)
-    if (record.type === 'video') setTimeout(loadAlbum, 6000)
+    if (record.type === 'video') setTimeout(() => loadAlbum(true), 6000)
     return 'ok'
   } catch (err) {
     return 'fail'
@@ -1345,4 +1348,5 @@ onUnmounted(() => {
   margin-bottom: 12px; grid-template-columns: repeat(6, 1fr); }
 }
 </style>
+
 
