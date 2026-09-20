@@ -81,7 +81,17 @@ const form = reactive({
   remember: false
 })
 
-onMounted(() => {
+onMounted(async () => {
+  // 检查是否已初始化
+  try {
+    const res = await fetch('/api/system/check-init')
+    const data = await res.json()
+    if (data.code === 200 && data.data && !data.data.initialized) {
+      router.push('/init')
+      return
+    }
+  } catch (e) {}
+
   // 只回填用户名。原先连明文密码一起存在 localStorage 里，
   // 任何 XSS 或共用设备都能直接读到，现在改为靠长效 Token 实现「记住我」。
   const saved = localStorage.getItem('tiamo_remember')
@@ -295,3 +305,4 @@ const handleLogin = async () => {
   text-decoration: underline;
 }
 </style>
+

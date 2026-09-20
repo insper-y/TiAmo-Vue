@@ -340,8 +340,8 @@ const handleReset = async () => {
     })
     const data = await res.json()
     if (data.code === 200) {
-      toast.success('系统重置成功！')
-      setTimeout(() => window.location.reload(), 1500)
+      toast.success('系统重置成功！即将跳转到初始化页面')
+      setTimeout(() => window.location.href = '/init', 2000)
     } else {
       toast.error(data.msg || '重置失败')
     }
@@ -682,6 +682,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
