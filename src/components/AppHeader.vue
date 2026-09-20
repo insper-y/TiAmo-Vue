@@ -9,7 +9,7 @@
       </button>
       <div class="logo">
         <span class="logo-icon">🚀</span>
-        <span class="logo-text">Tiamo AI</span>
+        <span class="logo-text">TiAmo 数据</span>
       </div>
     </div>
     <div class="header-right">

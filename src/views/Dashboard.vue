@@ -22,7 +22,7 @@
         <div class="welcome-card">
           <div class="welcome-text">
             <h2>{{ greeting }}，{{ user?.username }} 👋</h2>
-            <p>欢迎回到 Tiamo AI 数据管理平台</p>
+            <p>欢迎回到 TiAmo 数据管理平台</p>
           </div>
           <div class="welcome-date">{{ currentDate }}</div>
         </div>

@@ -8,7 +8,7 @@
           </svg>
         </div>
         <h1>注册账号</h1>
-        <p>加入 Tiamo AI 数据管理平台</p>
+        <p>加入 TiAmo 数据管理平台</p>
       </div>
 
       <form @submit.prevent="handleRegister">
