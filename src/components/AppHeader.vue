@@ -12,19 +12,18 @@
       </div>
     </div>
     <div class="header-right">
-      <span class="user-name">{{ user?.username }}</span>
-      <span class="user-role" :class="isAdmin ? 'admin' : 'user'" v-if="isAdmin">
-        管理员
-      </span>
-      <button class="logout-btn" @click="handleLogout">退出</button>
+      <button class="avatar-btn" @click="goProfile">
+        <img v-if="avatarUrl" :src="avatarUrl" class="avatar-img" alt="头像" />
+        <span v-else class="avatar-default">{{ avatarInitial }}</span>
+      </button>
     </div>
   </header>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { auth, toast, confirm } from '../utils'
+import { auth } from '../utils'
 
 defineProps({
   showBack: { type: Boolean, default: false }
@@ -33,16 +32,29 @@ defineEmits(['back'])
 
 const router = useRouter()
 const user = computed(() => auth.getUser())
-const isAdmin = computed(() => user.value?.role === 1)
+const avatarUrl = ref(localStorage.getItem('tiamo_avatar') || '')
 
-const handleLogout = async () => {
-  const ok = await confirm('退出登录', '确定要退出登录吗？')
-  if (ok) {
-    auth.logout()
-    router.push('/login')
-    toast.success('已退出登录')
-  }
+const avatarInitial = computed(() => {
+  const name = user.value?.username || 'U'
+  return name.charAt(0).toUpperCase()
+})
+
+const goProfile = () => {
+  router.push('/profile')
 }
+
+// 监听头像更新事件
+const handleAvatarUpdate = () => {
+  avatarUrl.value = localStorage.getItem('tiamo_avatar') || ''
+}
+
+onMounted(() => {
+  window.addEventListener('avatar-updated', handleAvatarUpdate)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('avatar-updated', handleAvatarUpdate)
+})
 </script>
 
 <style scoped>
@@ -83,30 +95,46 @@ const handleLogout = async () => {
   white-space: nowrap;
 }
 .header-right { display: flex; align-items: center; gap: 8px; }
-.user-name { font-size: 13px; font-weight: 500; color: #1e293b; }
-.user-role {
-  padding: 2px 6px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-weight: 500;
-}
-.user-role.admin { background: #eef2ff; color: #6366f1; }
-.logout-btn {
-  padding: 5px 10px;
-  background: #fef2f2;
-  color: #ef4444;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  font-size: 11px;
+.avatar-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  padding: 0;
   cursor: pointer;
+  overflow: hidden;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.avatar-btn:active {
+  transform: scale(0.95);
+  border-color: #6366f1;
+}
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-default {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 小屏幕手机进一步压缩 */
 @media (max-width: 360px) {
   .top-header { padding: 8px 10px; }
   .logo-text { font-size: 15px; }
-  .user-name { font-size: 12px; }
-  .logout-btn { padding: 4px 8px; font-size: 10px; }
+  .avatar-btn { width: 32px; height: 32px; }
 }
 </style>
 

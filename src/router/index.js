@@ -31,6 +31,12 @@ const routes = [
     meta: { title: '控制台', requiresAuth: true }
   },
   {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('../views/Profile.vue'),
+    meta: { title: '个人设置', requiresAuth: true }
+  },
+  {
     path: '/logs',
     name: 'Logs',
     component: () => import('../views/Logs.vue'),
@@ -90,3 +96,4 @@ router.beforeEach((to, from, next) => {
 })
 
 export default router
+
