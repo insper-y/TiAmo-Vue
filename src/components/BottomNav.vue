@@ -41,36 +41,40 @@ defineEmits(['go'])
   align-items: center;
   background: white;
   border-top: 1px solid #e2e8f0;
-  padding: 8px 0;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  padding: 6px 0;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom));
   z-index: 200;
 }
 .nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 3px 5px;
   color: #94a3b8;
   transition: all 0.2s;
 }
 .nav-item.active { color: #6366f1; }
-.nav-icon { font-size: 20px; }
+.nav-icon { font-size: 18px; }
 .nav-text { font-size: 10px; white-space: nowrap; }
 .nav-add {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   border-radius: 50%;
   color: white;
-  margin-top: -20px;
+  margin-top: -18px;
   box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.nav-add .nav-icon { font-size: 24px; }
+.nav-add .nav-icon { font-size: 22px; }
 @media (min-width: 769px) {
   .bottom-nav { display: none; }
 }
 </style>
+

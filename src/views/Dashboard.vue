@@ -1007,8 +1007,10 @@ onUnmounted(() => {
   background: #f8fafc;
   padding-bottom: calc(84px + env(safe-area-inset-bottom));
 }
-.content { padding: 16px; }
+.content { padding: 14px 14px 20px; }
 .view-header {
+  flex-wrap: wrap;
+  gap: 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1101,6 +1103,7 @@ onUnmounted(() => {
 
 /* 相册 */
 .album-tabs {
+  margin-bottom: 12px;
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
@@ -1119,6 +1122,7 @@ onUnmounted(() => {
   color: white;
 }
 .album-grid {
+  margin-bottom: 12px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
@@ -1337,6 +1341,7 @@ onUnmounted(() => {
 @media (min-width: 769px) {
     .dashboard { padding-bottom: 0; }
   .function-grid { grid-template-columns: repeat(6, 1fr); }
-  .album-grid { grid-template-columns: repeat(6, 1fr); }
+  .album-grid {
+  margin-bottom: 12px; grid-template-columns: repeat(6, 1fr); }
 }
 </style>
