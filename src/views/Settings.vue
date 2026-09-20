@@ -185,8 +185,17 @@
           </p>
           
           <button class="btn-primary btn-block" :disabled="backupLoading" @click="handleBackup">
-            {{ backupLoading ? '备份中…' : '📥 备份并下载数据' }}
+            {{ backupLoading ? '备份中…' : '💾 备份数据' }}
           </button>
+          
+          <div v-if="backupFileUrl" style="margin-top:12px;">
+            <button class="btn btn-block" style="background:#10b981;color:white;" @click="downloadBackup">
+              📥 下载备份文件
+            </button>
+            <p style="font-size:12px;color:#94a3b8;margin:8px 0 0 0;text-align:center;">
+              {{ backupFileName }}
+            </p>
+          </div>
           
           <div style="height:12px;"></div>
           
@@ -268,35 +277,38 @@ const loadBackupInfo = async () => {
   } catch (e) { /* 忽略 */ }
 }
 
+const backupFileUrl = ref('')
+const backupFileName = ref('')
+
 const handleBackup = async () => {
   backupLoading.value = true
   try {
-    // 获取 token
     const token = localStorage.getItem('tiamo_token') || ''
-    // 直接用 window.location 下载
-    const a = document.createElement('a')
-    a.href = '/api/system/backup'
-    // 不能直接用 a 标签下载，因为需要带 token
-    // 用 fetch + blob
     const res = await fetch('/api/system/backup', {
       headers: { 'Authorization': 'Bearer ' + token }
     })
     if (!res.ok) throw new Error('备份失败')
     const blob = await res.blob()
     const url = window.URL.createObjectURL(blob)
-    const downloadA = document.createElement('a')
-    downloadA.href = url
-    downloadA.download = 'tiamo_backup_' + new Date().toISOString().slice(0,10) + '.zip'
-    document.body.appendChild(downloadA)
-    downloadA.click()
-    document.body.removeChild(downloadA)
-    window.URL.revokeObjectURL(url)
-    toast.success('备份完成，已开始下载')
+    backupFileUrl.value = url
+    backupFileName.value = 'tiamo_backup_' + new Date().toISOString().slice(0,10) + '.zip'
+    toast.success('备份成功！请点击下方下载按钮')
   } catch (e) {
     toast.error('备份失败：' + (e.message || '未知错误'))
   } finally {
     backupLoading.value = false
   }
+}
+
+const downloadBackup = () => {
+  if (!backupFileUrl.value) return
+  const downloadA = document.createElement('a')
+  downloadA.href = backupFileUrl.value
+  downloadA.download = backupFileName.value
+  document.body.appendChild(downloadA)
+  downloadA.click()
+  document.body.removeChild(downloadA)
+  toast.success('已开始下载')
 }
 
 const triggerRestore = () => {
@@ -717,6 +729,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
