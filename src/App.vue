@@ -44,17 +44,14 @@ onUnmounted(() => {
 #app {
   width: 100%;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 .icp-footer {
   text-align: center;
-  padding: 12px 16px;
+  padding: 16px 16px 24px;
   font-size: 11px;
   color: #94a3b8;
   background: transparent;
-  flex-shrink: 0;
 }
 
 .icp-footer a {
