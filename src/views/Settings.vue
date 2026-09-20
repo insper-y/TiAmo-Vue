@@ -241,7 +241,7 @@ const handleBackup = async () => {
   backupLoading.value = true
   try {
     // 获取 token
-    const token = localStorage.getItem('token') || ''
+    const token = localStorage.getItem('tiamo_token') || ''
     // 直接用 window.location 下载
     const a = document.createElement('a')
     a.href = '/api/system/backup'
@@ -286,7 +286,7 @@ const handleRestore = async (e) => {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const token = localStorage.getItem('token') || ''
+    const token = localStorage.getItem('tiamo_token') || ''
     const res = await fetch('/api/system/restore', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token },
@@ -637,6 +637,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
