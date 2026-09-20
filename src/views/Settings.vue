@@ -78,8 +78,8 @@
 
           <div class="switch-row">
             <div>
-              <div class="switch-title">定时发送运行日志</div>
-              <div class="switch-desc">每日定时发送运行日志摘要</div>
+              <div class="switch-title">定时发送日报</div>
+              <div class="switch-desc">每日定时发送日报摘要</div>
             </div>
             <label class="switch">
               <input type="checkbox" v-model="logEmail.runLogEnabled" />
@@ -87,16 +87,7 @@
             </label>
           </div>
 
-          <div class="switch-row">
-            <div>
-              <div class="switch-title">定时发送操作日志</div>
-              <div class="switch-desc">每日定时发送操作日志摘要</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" v-model="logEmail.opLogEnabled" />
-              <span class="slider"></span>
-            </label>
-          </div>
+
 
           <label class="form-label">每日发送时间</label>
           <input v-model="logEmail.sendTime" type="time" class="input" />
@@ -311,12 +302,11 @@ const logEmailTo = ref('')
 const saveLogEmailConfig = async () => {
   emailLoading.value = true
   try {
-    // 保存到邮件配置接口
+    // 保存到邮件配置接口（字段名与后端对齐）
     const res = await configApi.updateEmail({
-      realtimeEnabled: settings.emailRealtimeEnabled,
-      to: logEmailTo.value,
-      runLogEnabled: logEmail.runLogEnabled,
-      opLogEnabled: logEmail.opLogEnabled,
+      realTimeEnabled: settings.emailRealtimeEnabled ? 'true' : 'false',
+      toEmail: logEmailTo.value,
+      enabled: logEmail.runLogEnabled ? 'true' : 'false',
       sendTime: logEmail.sendTime
     })
     if (res.code === 200) toast.success('推送配置已保存')
@@ -334,11 +324,11 @@ const loadLogEmailConfig = async () => {
     const res = await configApi.getEmail()
     if (res.code === 200 && res.data) {
       const d = res.data
-      settings.emailRealtimeEnabled = d.realtimeEnabled !== false
-      logEmailTo.value = d.to || ''
-      logEmail.runLogEnabled = d.runLogEnabled === true || d.runLogEnabled === 'true'
-      logEmail.opLogEnabled = d.opLogEnabled === true || d.opLogEnabled === 'true'
+      settings.emailRealtimeEnabled = d.realTimeEnabled !== 'false'
+      logEmailTo.value = d.toEmail || ''
       logEmail.sendTime = d.sendTime || '08:00'
+      logEmail.runLogEnabled = d.enabled !== 'false'
+      logEmail.opLogEnabled = false // 后端暂不支持区分，先禁用
     }
   } catch (e) { /* 忽略加载失败 */ }
 }
@@ -601,6 +591,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
