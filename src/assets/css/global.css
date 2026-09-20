@@ -71,16 +71,27 @@ html, body {
   box-shadow: none;
 }
 .btn-danger {
-  background: var(--error);
+  background: linear-gradient(135deg, #ef4444, #f87171);
   color: white;
-  border-color: var(--error);
+  border: none;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
-.btn-danger:hover { background: #dc2626; }
+.btn-danger:hover { 
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+}
+.btn-danger:active {
+  transform: translateY(0);
+}
 .btn-block {
   display: block;
   width: 100%;
   text-align: center;
-  margin-top: 16px;
+  margin-top: 20px;
+  padding: 16px 24px;
+  font-size: 16px;
+  border-radius: 16px;
+  font-weight: 600;
 }
 .btn-success {
   background: var(--success);
@@ -510,5 +521,6 @@ html, body {
     font-size: 12px;
   }
 }
+
 
 
