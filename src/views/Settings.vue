@@ -209,7 +209,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import BottomNav from '../components/BottomNav.vue'
-import { systemApi } from '../api'
+import { systemApi, configApi } from '../api'
 import { auth, toast, confirm } from '../utils'
 
 const router = useRouter()
@@ -591,6 +591,7 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
 
 
 
