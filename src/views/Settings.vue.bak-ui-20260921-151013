@@ -54,11 +54,13 @@
             <strong style="color:#94a3b8">未生成</strong>
           </div>
 
-          <button class="btn-primary btn-block" :disabled="invite.loading || !!invite.code" @click="generateInvite">
-            {{ invite.loading ? '生成中...' : (invite.code ? '当前码未过期' : '生成邀请码') }}
-          </button>
-          <button class="btn btn-block" v-if="invite.code" @click="copyInvite">复制邀请码</button>
-          <button class="btn btn-block" v-if="invite.code" @click="resetInvite">放弃此码</button>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn-primary" :disabled="invite.loading || !!invite.code" @click="generateInvite">
+              {{ invite.loading ? '生成中...' : (invite.code ? '当前码未过期' : '生成邀请码') }}
+            </button>
+            <button class="btn" v-if="invite.code" @click="copyInvite">复制</button>
+            <button class="btn" v-if="invite.code" @click="resetInvite">放弃此码</button>
+          </div>
         </div>
       </section>
 

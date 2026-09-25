@@ -11,27 +11,21 @@
     <button class="nav-item nav-add" @click="$emit('go', 'add')">
       <span class="nav-icon">➕</span>
     </button>
-    <button v-if="isAdmin" class="nav-item" :class="{active: active === 'logs'}" @click="$emit('go', 'logs')">
+    <button class="nav-item" :class="{active: active === 'logs'}" @click="$emit('go', 'logs')">
       <span class="nav-icon">📋</span>
       <span class="nav-text">操作日志</span>
     </button>
-    <button v-if="isAdmin" class="nav-item" :class="{active: active === 'runlog'}" @click="$emit('go', 'runlog')">
+    <button class="nav-item" :class="{active: active === 'runlog'}" @click="$emit('go', 'runlog')">
       <span class="nav-icon">⚙️</span>
       <span class="nav-text">运行日志</span>
-    </button>
-    <button class="nav-item" :class="{active: active === 'me'}" @click="$emit('go', 'me')">
-      <span class="nav-icon">👤</span>
-      <span class="nav-text">我的</span>
     </button>
   </nav>
 </template>
 
 <script setup>
 defineProps({
-  // 'home' | 'album' | 'logs' | 'runlog' | 'me' | ''
-  active: { type: String, default: '' },
-  // 操作日志与运行日志属于管理员专属页面，普通用户不展示入口
-  isAdmin: { type: Boolean, default: false }
+  // 'home' | 'album' | 'logs' | 'runlog' | ''
+  active: { type: String, default: '' }
 })
 defineEmits(['go'])
 </script>

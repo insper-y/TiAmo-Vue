@@ -95,13 +95,6 @@ router.beforeEach(async (to, from, next) => {
 
   const loggedIn = auth.isAuthenticated()
 
-  // 系统已初始化后，初始化页必须立即失效：
-  // 未登录 -> 登录页；已登录 -> 控制台。避免任何人停在建号表单上。
-  if (initialized && to.path === '/init') {
-    next(loggedIn ? '/dashboard' : '/login')
-    return
-  }
-
   if (to.meta.requiresAuth && !loggedIn) {
     // 带上 redirect，登录成功后回到用户原本想访问的页面
     const redirect = to.fullPath && to.fullPath !== '/' ? to.fullPath : undefined

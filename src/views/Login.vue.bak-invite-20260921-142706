@@ -84,7 +84,7 @@ const form = reactive({
 onMounted(async () => {
   // 检查是否已初始化
   try {
-    const res = await fetch('/api/auth/check-init')
+    const res = await fetch('/api/system/check-init')
     const data = await res.json()
     if (data.code === 200 && data.data && !data.data.initialized) {
       router.push('/init')

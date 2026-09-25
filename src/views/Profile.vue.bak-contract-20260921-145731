@@ -141,8 +141,7 @@ const changePassword = async () => {
   try {
     const res = await systemApi.changePassword({
       oldPassword: pwdForm.value.oldPassword,
-      newPassword: pwdForm.value.newPassword,
-      confirmPassword: pwdForm.value.confirmPassword
+      newPassword: pwdForm.value.newPassword
     })
     if (res.code === 200) {
       toast.success('密码修改成功')

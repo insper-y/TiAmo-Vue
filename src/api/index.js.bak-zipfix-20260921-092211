@@ -75,7 +75,8 @@ export const userApi = {
   list: (params) => request.get('/api/admin/users', { params }),
   updateRole: (id, role) => request.put(`/api/admin/users/${id}/role`, { role }),
   updateStatus: (id, status) => request.put(`/api/admin/users/${id}/status`, { status }),
-  delete: (id) => request.delete(`/api/admin/users/${id}`)
+  delete: (id) => request.delete(`/api/admin/users/${id}`),
+  resetPassword: (id, data) => request.post(`/api/admin/users/${id}/password`, data)
 }
 
 // 商品数据
@@ -135,7 +136,7 @@ export const runLogApi = {
 
 // 系统设置
 export const systemApi = {
-  backupInfo: () => request.get('/api/system/backup/info'),
+  backupInfo: () => request.get('/api/system/backup'),
   profile: () => request.get('/api/system/profile'),
   changePassword: (data) => request.post('/api/system/change-password', data),
   getSettings: () => request.get('/api/system/settings'),

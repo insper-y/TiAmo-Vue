@@ -75,7 +75,8 @@ export const userApi = {
   list: (params) => request.get('/api/admin/users', { params }),
   updateRole: (id, role) => request.put(`/api/admin/users/${id}/role`, { role }),
   updateStatus: (id, status) => request.put(`/api/admin/users/${id}/status`, { status }),
-  delete: (id) => request.delete(`/api/admin/users/${id}`)
+  delete: (id) => request.delete(`/api/admin/users/${id}`),
+  resetPassword: (id, data) => request.post(`/api/admin/users/${id}/password`, data)
 }
 
 // 商品数据

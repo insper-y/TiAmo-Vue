@@ -31,37 +31,6 @@
         </div>
       </section>
 
-      <!-- 注册邀请码 -->
-      <section class="card">
-        <div class="card-head">
-          <h2>注册邀请码</h2>
-        </div>
-        <div class="card-body">
-          <p style="margin:0 0 14px 0;color:#64748b;font-size:13px;line-height:1.7">
-            邀请码为 6 位数字，生成后 {{ inviteTtlMinutes }} 分钟内有效，仅可使用一次，到期自动作废。
-          </p>
-
-          <div v-if="invite.code" class="kv" style="align-items:center">
-            <span>当前邀请码</span>
-            <strong style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:26px;letter-spacing:4px">{{ invite.code }}</strong>
-          </div>
-          <div v-if="invite.code" class="kv" style="align-items:center">
-            <span>剩余有效期</span>
-            <strong :style="invite.left <= 30 ? 'color:#dc2626' : ''">{{ invite.leftText }}</strong>
-          </div>
-          <div v-else class="kv">
-            <span>当前邀请码</span>
-            <strong style="color:#94a3b8">未生成</strong>
-          </div>
-
-          <button class="btn-primary btn-block" :disabled="invite.loading || !!invite.code" @click="generateInvite">
-            {{ invite.loading ? '生成中...' : (invite.code ? '当前码未过期' : '生成邀请码') }}
-          </button>
-          <button class="btn btn-block" v-if="invite.code" @click="copyInvite">复制邀请码</button>
-          <button class="btn btn-block" v-if="invite.code" @click="resetInvite">放弃此码</button>
-        </div>
-      </section>
-
 <!-- 日志邮件推送 -->
       <section class="card">
         <div class="card-head">
@@ -295,11 +264,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import BottomNav from '../components/BottomNav.vue'
-import { systemApi, configApi, authApi } from '../api'
+import { systemApi, configApi } from '../api'
 import { auth, toast, confirm } from '../utils'
 
 const router = useRouter()
@@ -316,72 +285,6 @@ const backupLoading = ref(false)
 const restoreLoading = ref(false)
 const resetLoading = ref(false)
 const restoreInput = ref(null)
-const inviteTtlMinutes = ref(3)
-const invite = reactive({ code: '', left: 0, leftText: '', loading: false, expireAt: 0 })
-let inviteTimer = null
-
-const tickInvite = () => {
-  if (!invite.code || !invite.expireAt) return
-  const left = Math.max(0, Math.round((invite.expireAt - Date.now()) / 1000))
-  invite.left = left
-  const m = Math.floor(left / 60)
-  const s = left % 60
-  invite.leftText = m + ' 分 ' + (s < 10 ? '0' + s : s) + ' 秒'
-  if (left <= 0) {
-    clearInvite()
-    toast.info('邀请码已过期并自动作废')
-  }
-}
-
-const clearInvite = () => {
-  invite.code = ''
-  invite.left = 0
-  invite.leftText = ''
-  invite.expireAt = 0
-  if (inviteTimer) { clearInterval(inviteTimer); inviteTimer = null }
-}
-
-const startInviteTimer = () => {
-  if (inviteTimer) clearInterval(inviteTimer)
-  tickInvite()
-  inviteTimer = setInterval(tickInvite, 1000)
-}
-
-const generateInvite = async () => {
-  invite.loading = true
-  try {
-    const res = await authApi.generateInviteCode()
-    if (res && res.code === 200 && res.data && res.data.inviteCode) {
-      invite.code = res.data.inviteCode
-      inviteTtlMinutes.value = res.data.expireMinutes || 3
-      // 以后端返回的分钟数换算绝对到期时刻，避免切后台导致倒计时走慢
-      invite.expireAt = Date.now() + inviteTtlMinutes.value * 60 * 1000
-      startInviteTimer()
-      toast.success('邀请码已生成')
-    } else {
-      toast.error((res && res.msg) || '生成失败')
-    }
-  } catch (e) {
-    toast.error(e && e.response && e.response.data && e.response.data.msg ? e.response.data.msg : '生成失败，请稍后重试')
-  } finally {
-    invite.loading = false
-  }
-}
-
-const copyInvite = async () => {
-  try {
-    await navigator.clipboard.writeText(invite.code)
-    toast.success('已复制到剪贴板')
-  } catch (e) {
-    toast.warning('浏览器不允许自动复制，请手动选中')
-  }
-}
-
-const resetInvite = () => { clearInvite(); toast.info('已放弃当前邀请码') }
-
-onUnmounted(() => { if (inviteTimer) clearInterval(inviteTimer) })
-document.addEventListener('visibilitychange', () => { if (!document.hidden) tickInvite() })
-
 const backupInfo = ref(null)
 
 const loadBackupInfo = async () => {

@@ -83,7 +83,7 @@
       </div>
     </div>
 
-    <BottomNav active="runlog" @go="onNav" />
+    <BottomNav active="runlog" :is-admin="true" @go="onNav" />
   </div>
 </template>
 
@@ -497,6 +497,7 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 </style>
+
 
 
 

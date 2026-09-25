@@ -40,8 +40,8 @@
           </div>
         </div>
 
-        <div class="section-title" v-if="isAdmin">最近活动</div>
-        <div class="recent-list" v-if="isAdmin">
+        <div class="section-title">最近活动</div>
+        <div class="recent-list">
           <div v-if="recentLogs.length === 0" class="empty-state">暂无活动记录</div>
           <div v-for="log in recentLogs" :key="log.id" class="recent-item">
             <div class="recent-dot" :class="log.status === '成功' ? 'success' : 'error'"></div>
@@ -280,7 +280,7 @@
     </main>
 
     <!-- 底部导航 -->
-    <BottomNav :active="navActive" :is-admin="isAdmin" @go="onNav" />
+    <BottomNav :active="navActive" @go="onNav" />
   </div>
 </template>
 
@@ -331,7 +331,6 @@ const onNav = (key) => {
   else if (key === 'add') triggerUpload('image')
   else if (key === 'logs') goRoute('/logs')
   else if (key === 'runlog') goRoute('/run-log')
-  else if (key === 'me') goRoute('/profile')
 }
 
 // 切换页签时刷新对应数据，保证内容最新
@@ -356,7 +355,7 @@ watch(() => route.query.tab, (t) => {
 const allTabs = [
   { key: 'home', name: '首页', icon: '🏠', admin: false },
   { key: 'users', name: '用户管理', icon: '👥', admin: true },
-  { key: 'recycle', name: '回收站', icon: '🗑️', admin: true },
+  { key: 'recycle', name: '回收站', icon: '🗑️', admin: false },
   { key: 'database', name: '数据库', icon: '🗄️', admin: true },
   { key: 'export', name: '数据导出', icon: '📤', admin: false },
   { key: 'email', name: '邮件配置', icon: '📧', admin: true },
@@ -366,22 +365,15 @@ const allTabs = [
 
 const visibleTabs = computed(() => allTabs.filter(t => !t.admin || isAdmin.value))
 
-const quickFunctions = computed(() => {
-  // 普通用户只保留相册与数据导出；回收站、日志类、用户列表、系统设置均属管理员
-  const common = [
-    { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' },
-    { key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' }
-  ]
-  if (!auth.isAdmin()) return common
-  return [
-    { key: 'users', name: '用户列表', icon: '👥', bg: 'linear-gradient(135deg,#8b5cf6,#6d28d9)' },
-    { key: 'recycle', name: '回收站', icon: '🗑️', bg: 'linear-gradient(135deg,#f59e0b,#f97316)' },
-    ...common,
-    { key: 'oplog', name: '操作日志', route: '/logs', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
-    { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' },
-    { key: 'settings', name: '系统设置', route: '/settings', icon: '🛠️', bg: 'linear-gradient(135deg,#6366f1,#4f46e5)' }
-  ]
-})
+const quickFunctions = computed(() => [
+  { key: 'recycle', name: '回收站', icon: '🗑️', bg: 'linear-gradient(135deg,#f59e0b,#f97316)' },
+  { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' },
+  { key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' },
+  { key: 'oplog', name: '操作日志', route: '/logs', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+  { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' },
+  // 系统设置仅管理员可见
+  ...(auth.isAdmin() ? [{ key: 'settings', name: '系统设置', route: '/settings', icon: '🛠️', bg: 'linear-gradient(135deg,#6366f1,#4f46e5)' }] : [])
+])
 
 const openFunction = (func) => {
   if (func.route) router.push(func.route)
@@ -455,10 +447,6 @@ const exportItems = [
 
 // 方法
 const loadRecentLogs = async () => {
-  // /api/logs 属于 JwtInterceptor 的管理员专属前缀，普通用户调用必然 403。
-  // 后端尚未提供「仅看本人操作日志」的能力，这里先让非管理员不发起该请求，
-  // 避免每次进控制台都产生一条失败请求和一条控制台报错。
-  if (!isAdmin.value) { recentLogs.value = []; return }
   try {
     const res = await logApi.list({ page: 1, size: 5 })
     if (res.code === 200) recentLogs.value = res.data?.records || res.data || []

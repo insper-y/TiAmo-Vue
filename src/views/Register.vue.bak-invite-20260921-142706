@@ -24,7 +24,7 @@
 
         <div class="form-group">
           <label class="form-label">密码</label>
-          <input v-model="form.password" type="password" class="form-input" placeholder="请输入密码（至少8位）" required />
+          <input v-model="form.password" type="password" class="form-input" placeholder="请输入密码（至少6位）" required />
         </div>
 
         <div class="form-group">
@@ -81,8 +81,8 @@ const handleRegister = async () => {
     toast.error('两次输入的密码不一致')
     return
   }
-  if (form.password.length < 8) {
-    toast.error('密码至少8位')
+  if (form.password.length < 6) {
+    toast.error('密码至少6位')
     return
   }
   if (!form.agree) {
@@ -96,7 +96,6 @@ const handleRegister = async () => {
       username: form.username,
       email: form.email,
       password: form.password,
-      confirmPassword: form.confirmPassword,
       inviteCode: form.inviteCode
     })
 

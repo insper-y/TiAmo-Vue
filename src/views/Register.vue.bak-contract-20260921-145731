@@ -96,7 +96,6 @@ const handleRegister = async () => {
       username: form.username,
       email: form.email,
       password: form.password,
-      confirmPassword: form.confirmPassword,
       inviteCode: form.inviteCode
     })
 

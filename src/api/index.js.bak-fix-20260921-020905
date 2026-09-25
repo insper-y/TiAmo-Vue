@@ -75,7 +75,8 @@ export const userApi = {
   list: (params) => request.get('/api/admin/users', { params }),
   updateRole: (id, role) => request.put(`/api/admin/users/${id}/role`, { role }),
   updateStatus: (id, status) => request.put(`/api/admin/users/${id}/status`, { status }),
-  delete: (id) => request.delete(`/api/admin/users/${id}`)
+  delete: (id) => request.delete(`/api/admin/users/${id}`),
+  resetPassword: (id, data) => request.post(`/api/admin/users/${id}/reset-password`, data)
 }
 
 // 商品数据
@@ -97,13 +98,13 @@ export const approvalApi = {
   myApprovals: (params) => request.get('/api/recycle-approval/my', { params }),
   pendingCount: () => request.get('/api/recycle-approval/pending/count'),
   submit: (data) => request.post('/api/recycle-approval/submit', data),
-  approve: (id, remark) => request.put(`/api/recycle-approval/${id}/approve`, { remark }),
-  reject: (id, remark) => request.put(`/api/recycle-approval/${id}/reject`, { remark }),
-  batchApprove: (ids) => request.put('/api/recycle-approval/batch-approve', { ids }),
-  batchReject: (ids) => request.put('/api/recycle-approval/batch-reject', { ids }),
+  approve: (id, remark) => request.post(`/api/recycle-approval/${id}/approve`, { remark }),
+  reject: (id, remark) => request.post(`/api/recycle-approval/${id}/reject`, { remark }),
+  batchApprove: (ids) => request.post('/api/recycle-approval/batch-approve', { ids }),
+  batchReject: (ids) => request.post('/api/recycle-approval/batch-reject', { ids }),
   markAsRead: (id) => request.post(`/api/recycle-approval/${id}/read`),
   markAllAsRead: () => request.post('/api/recycle-approval/mark-all-read'),
-  deleteAllRead: () => request.delete('/api/recycle-approval/delete-all-read'),
+  deleteAllRead: () => request.post('/api/recycle-approval/delete-all-read'),
   delete: (id) => request.delete(`/api/recycle-approval/${id}`)
 }
 
@@ -113,6 +114,7 @@ export const logApi = {
   stats: () => request.get('/api/logs/stats'),
   detail: (id) => request.get(`/api/logs/${id}`),
   batchDelete: (ids) => request.post('/api/logs/batch-delete', { ids }),
+  clearAll: () => request.post('/api/logs/clear-all'),
   clean: (days) => request.post('/api/logs/clean', { days }),
   getRetention: () => request.get('/api/logs/retention-days'),
   setRetention: (data) => request.put('/api/logs/retention-days', data)

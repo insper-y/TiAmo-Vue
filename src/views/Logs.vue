@@ -125,7 +125,7 @@
       </div>
     </div>
 
-    <BottomNav active="logs" @go="onNav" />
+    <BottomNav active="logs" :is-admin="true" @go="onNav" />
   </div>
 </template>
 
@@ -315,4 +315,5 @@ onUnmounted(() => {
   white-space: pre-wrap;
 }
 </style>
+
 
