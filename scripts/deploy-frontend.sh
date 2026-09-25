@@ -28,7 +28,7 @@ WEB="${WEB:-/opt/tiamo/frontend}"                    # nginx 站点根
 SITE="${SITE:-https://tiamozf.icu}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 LOGDIR="${LOGDIR:-/opt/tiamo/logs}"
-BACKUP="$WEB.bak-deploy-$STAMP"
+BACKUP="$WEB.bak-deploy-$STAMP-$$"
 DRY=0; ALLOW_DIRTY=0; SKIP_GIT=0
 for a in "$@"; do case "$a" in
   --dry-run) DRY=1 ;; --no-git) SKIP_GIT=1 ;; --allow-dirty) ALLOW_DIRTY=1 ;;
@@ -37,10 +37,9 @@ esac; done
 
 mkdir -p "$LOGDIR"
 LOG="$LOGDIR/deploy-frontend-$STAMP.log"
-if [ -z "${DEPLOY_LOGGING:-}" ]; then
-  export DEPLOY_LOGGING=1
-  exec bash "$SELF" "$@" 2>&1 | tee "$LOG"
-fi
+# 进程替换，单实例。不要用 `exec bash $SELF | tee`：管道下 exec 不替换当前 shell，
+# 父进程会 fork 子进程后继续往下跑，造成同一部署并发执行两遍。
+exec > >(tee -a "$LOG") 2>&1
 
 step() { printf '\n=== %s ===\n' "$*"; }
 die()  { printf '\n中止：%s\n（线上未改动，日志 %s）\n' "$*" "$LOG"; exit 1; }
