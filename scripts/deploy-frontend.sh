@@ -63,6 +63,19 @@ for r in "$FRONT" "$MIRROR_REPO"; do
   BR=$(git rev-parse --abbrev-ref HEAD)
   BEHIND=$(git rev-list --count "HEAD..origin/$BR" 2>/dev/null || echo 0)
   [ "$BEHIND" = "0" ] || die "$r 落后 origin/$BR $BEHIND 个提交，请先 pull 再部署"
+  if [ "$r" = "$MIRROR_REPO" ]; then
+    # frontend/ 内的改动是本脚本第 7 步要提交的内容，不算脏；其余位置才需要人工处理
+    OUT=$(git status --porcelain -- . ':!frontend' | wc -l)
+    IN=$(git status --porcelain -- frontend | wc -l)
+    printf '%s [%s] 镜像外 %d 项，frontend/ 内 %d 项（后者将由本脚本提交）\n' \
+      "$(basename "$r")" "$BR" "$OUT" "$IN"
+    if [ "$OUT" != "0" ]; then
+      git status --porcelain -- . ':!frontend' | head -8
+      die "$r 在 frontend/ 之外有未提交改动，请先自行处理"
+    fi
+    [ "$IN" = "0" ] || git status --porcelain -- frontend | head -5
+    continue
+  fi
   DIRTY=$(git status --porcelain | wc -l)
   printf '%s [%s] 未提交改动 %d 项\n' "$(basename "$r")" "$BR" "$DIRTY"
   if [ "$DIRTY" != "0" ] && [ "$ALLOW_DIRTY" = "0" ]; then
@@ -73,19 +86,40 @@ done
 cd "$FRONT"
 
 step "2. 同步聚合仓库镜像"
-if command -v rsync >/dev/null 2>&1; then
-  run rsync -a --delete "$FRONT/src/" "$MIRROR/src/"
+# 权限归一化为 644/755：源码目录有历史遗留的 755，直接 cp -a 会把模式带进镜像，
+# 让 TiAmo 出现纯权限的"已修改"，预检因此误判
+RSYNC_FLAGS="-rlpt --no-perms --chmod=F644,D755 --omit-dir-times --delete"
+if [ "$DRY" = "1" ]; then
+  # 预演不写镜像：否则脚本会把自己弄脏的工作区留给下一次预检判罚
+  if command -v rsync >/dev/null 2>&1; then
+    run rsync $RSYNC_FLAGS --dry-run --itemize-changes "$FRONT/src/" "$MIRROR/src/" \
+      | tee "$LOGDIR/.mirror-itemize-$STAMP.txt" >/dev/null
+    N=$(grep -c "." "$LOGDIR/.mirror-itemize-$STAMP.txt" || true)
+    printf '预演：镜像将更新 %s 个文件（未写入）\n' "$N"
+  else
+    printf '预演：未安装 rsync，跳过镜像差异报告\n'
+  fi
 else
-  rm -rf "$MIRROR/src"; run cp -a "$FRONT/src" "$MIRROR/src"
+  if command -v rsync >/dev/null 2>&1; then
+    run rsync $RSYNC_FLAGS "$FRONT/src/" "$MIRROR/src/"
+  else
+    rm -rf "$MIRROR/src"; mkdir -p "$MIRROR/src"
+    (cd "$FRONT" && find src -type f | cpio -pmdu "$MIRROR/") >/dev/null 2>&1
+  fi
+  # 构建配置一并跟随，避免镜像里的 index.html / package.json 落后
+  for f in index.html package.json vite.config.js; do
+    [ -f "$FRONT/$f" ] && cp -f "$FRONT/$f" "$MIRROR/$f" 2>/dev/null || true
+  done
+  # 上一轮 cp -a 已把 755 带进镜像根文件，cp -f 不改权限，这里显式归一
+  find "$MIRROR" -maxdepth 1 -type f -exec chmod 644 {} + 2>/dev/null || true
+  mkdir -p "$MIRROR/scripts"
+  for s in "$FRONT"/scripts/*.sh; do
+    [ -f "$s" ] && cp -f "$s" "$MIRROR/scripts/" 2>/dev/null || true
+  done
+  chmod 755 "$MIRROR"/scripts/*.sh 2>/dev/null || true
+  CHANGED=$(diff -rq "$FRONT/src" "$MIRROR/src" 2>/dev/null | grep -c "^Files" || true)
+  printf '镜像同步完成，仍有内容差异的文件：%s\n' "$CHANGED"
 fi
-# 构建配置一并跟随，避免镜像里的 index.html/package.json 落后
-for f in index.html package.json vite.config.js; do
-  [ -f "$FRONT/$f" ] && cp -a "$FRONT/$f" "$MIRROR/$f" 2>/dev/null || true
-done
-mkdir -p "$MIRROR/scripts"
-cp -a "$FRONT/scripts/"*.sh "$MIRROR/scripts/" 2>/dev/null || true
-CHANGED=$(diff -rq "$FRONT/src" "$MIRROR/src" 2>/dev/null | grep -c "^Files" || true)
-printf '镜像同步完成，仍有内容差异的文件：%s\n' "$CHANGED"
 
 step "3. 构建"
 run npm run build 2>&1 | tail -4 || die "构建失败，未触碰线上"
@@ -102,12 +136,24 @@ fi
 
 step "5. 备份并原子上线"
 run cp -a "$WEB" "$BACKUP"
-rm -rf "$WEB".new && cp -a "$FRONT/dist" "$WEB".new
-# 保留站点目录里非构建产物的内容（如 ACME 校验文件）
-[ -d "$WEB"/.well-known ] && cp -a "$WEB"/.well-known "$WEB".new/ 2>/dev/null || true
-mv "$WEB" "$WEB".old-$STAMP && mv "$WEB".new "$WEB"
-rm -rf "$WEB".old-$STAMP
-printf '上线完成，站点根：%s（备份：%s）\n' "$WEB" "$BACKUP"
+# 先拷到站点同分区的暂存目录：dist 保持完整（第 6 步还要拿它比对），
+# 而入口文件的 mv 是同分区 rename，原子生效
+TMPT="/opt/tiamo/.deploy-stage-$STAMP"
+rm -rf "$TMPT"; cp -a "$FRONT/dist" "$TMPT"; trap 'rm -rf "$TMPT"' EXIT
+# 1) 新 chunk 先并入：新旧同时在场，切换前任何已缓存页面都能取到文件
+mkdir -p "$WEB/assets"
+run cp -a "$TMPT/assets/." "$WEB/assets/"
+# 2) 入口用 rename 原子替换，这一刻起新 chunk 已全部就位
+for f in "$TMPT"/*; do
+  case "$f" in *.html|*.json|*.txt) mv -f "$f" "$WEB"/ ;; esac
+done
+# 3) 清理不再被新入口引用的旧产物（只动 assets，保留 .well-known 等站点自有文件）
+STALE=0
+for f in $(ls "$WEB/assets" 2>/dev/null); do
+  [ -f "$FRONT/dist/assets/$f" ] || { rm -f "$WEB/assets/$f"; STALE=$((STALE+1)); }
+done
+rm -rf "$TMPT"
+printf '上线完成：站点根 %s，清理旧产物 %d 个，备份 %s\n' "$WEB" "$STALE" "$BACKUP"
 
 rollback() {
   step "回滚到 $BACKUP"
