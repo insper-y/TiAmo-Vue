@@ -1,0 +1,61 @@
+/* ============================================================
+   桌面端统一适配层（≥769px 生效）
+   只使用新增类名，不与各页面 scoped 样式争优先级；
+   .mob-only / .pc-only 需要覆盖组件内既有 display，故用 !important。
+   ============================================================ */
+.pc-only { display: none !important; }
+
+@media (min-width: 769px) {
+  .mob-only { display: none !important; }
+  .pc-only { display: block !important; }
+  table.pc-only { display: table !important; }
+
+  .pc-wrap { max-width: 1240px; margin: 0 auto; }
+
+  .pc-table {
+    /* 列多时不压缩，交给容器横向滚动，保证 IP/时间等长字段可读 */
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .pc-table th, .pc-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #f1f5f9;
+    white-space: nowrap;
+  }
+  .pc-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .pc-table tbody tr:last-child td { border-bottom: none; }
+  .pc-table tbody tr:hover { background: #f8fafc; }
+  .pc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pc-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .pc-table .wrap { white-space: normal; word-break: break-all; max-width: 420px; }
+  .pc-table .ops { white-space: normal; }
+  .pc-table .ops .btn { padding: 5px 10px; font-size: 12px; margin: 2px 4px 2px 0; }
+  .pc-table .muted { color: #94a3b8; }
+  .pc-scroll {
+    overflow: auto;
+    max-height: calc(100vh - 240px);
+    border-radius: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* 需要横向滚动的表格给出边界阴影提示 */
+  .pc-scroll-edge {
+    background:
+      linear-gradient(90deg, #fff 30%, rgba(255, 255, 255, 0)) left / 18px 100% no-repeat,
+      linear-gradient(-90deg, #fff 30%, rgba(255, 255, 255, 0)) right / 18px 100% no-repeat;
+  }
+}

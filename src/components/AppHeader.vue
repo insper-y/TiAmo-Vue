@@ -11,6 +11,16 @@
         <span class="logo-text">TiAmo</span>
       </div>
     </div>
+    <!-- 桌面端主导航：移动端由 BottomNav 承担，≥769px 时由 CSS 切换显示 -->
+    <nav class="pc-nav pc-only">
+      <button
+        v-for="n in navItems"
+        :key="n.key"
+        class="pc-nav-item"
+        :class="{ active: isActive(n) }"
+        @click="go(n)"
+      >{{ n.name }}</button>
+    </nav>
     <div class="header-right">
       <button class="avatar-btn" @click="goProfile">
         <img v-if="avatarUrl" :src="avatarUrl" class="avatar-img" alt="头像" />
@@ -22,6 +32,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { auth } from '../utils'
 
@@ -31,8 +42,9 @@ defineProps({
 defineEmits(['back'])
 
 const router = useRouter()
+const route = useRoute()
 const user = computed(() => auth.getUser())
-const avatarUrl = ref(localStorage.getItem('tiamo_avatar') || '')
+const avatarUrl = ref((auth.getUser()?.avatar) || localStorage.getItem('tiamo_avatar') || '')
 
 const avatarInitial = computed(() => {
   const name = user.value?.username || 'U'
@@ -43,9 +55,42 @@ const goProfile = () => {
   router.push('/profile')
 }
 
+// 按登录角色与已分配权限生成导航，避免把入口指向进不去的页面
+const userPermissions = computed(() => {
+  try {
+    const u = auth.getUser()
+    return u?.permissions ? JSON.parse(u.permissions) : []
+  } catch (e) { return [] }
+})
+const admin = computed(() => auth.isAdmin())
+const navItems = computed(() => {
+  const can = (perm) => admin.value || userPermissions.value.includes(perm)
+  const items = [
+    { key: 'home', name: '首页', tab: 'home' },
+    { key: 'album', name: '相册', tab: 'album' }
+  ]
+  if (admin.value) items.push({ key: 'users', name: '用户管理', tab: 'users' })
+  if (can('database')) items.push({ key: 'database', name: '数据库', tab: 'database' })
+  if (can('export')) items.push({ key: 'export', name: '数据导出', tab: 'export' })
+  if (admin.value) items.push({ key: 'recycle', name: '回收站', tab: 'recycle' })
+  if (can('oplog')) items.push({ key: 'logs', name: '操作日志', path: '/logs' })
+  if (can('runlog')) items.push({ key: 'runlog', name: '运行日志', path: '/run-log' })
+  if (admin.value) items.push({ key: 'settings', name: '系统设置', path: '/settings' })
+  items.push({ key: 'profile', name: '我的', path: '/profile' })
+  return items
+})
+const isActive = (n) => {
+  if (n.path) return route.path === n.path
+  return route.path === '/dashboard' && (route.query.tab || 'home') === n.tab
+}
+const go = (n) => {
+  if (n.path) { router.push(n.path); return }
+  router.push({ path: '/dashboard', query: n.tab === 'home' ? {} : { tab: n.tab } })
+}
+
 // 监听头像更新事件
 const handleAvatarUpdate = () => {
-  avatarUrl.value = localStorage.getItem('tiamo_avatar') || ''
+  avatarUrl.value = auth.getUser()?.avatar || localStorage.getItem('tiamo_avatar') || ''
 }
 
 onMounted(() => {
@@ -129,6 +174,32 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
 }
+
+.pc-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pc-nav::-webkit-scrollbar { display: none; }
+.pc-nav-item {
+  border: none;
+  background: none;
+  padding: 7px 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.pc-nav-item:hover { background: #f1f5f9; color: #334155; }
+.pc-nav-item.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+.top-header { padding: 10px 24px; }
+.header-left { flex: 0 0 auto; }
+@media (max-width: 768px) { .pc-nav { display: none; } }
 
 /* 小屏幕手机进一步压缩 */
 @media (max-width: 360px) {

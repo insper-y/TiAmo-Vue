@@ -64,6 +64,8 @@ export const authApi = {
   login: (data) => request.post('/api/auth/login', data),
   register: (data) => request.post('/api/auth/register', data),
   sendCode: (email) => request.post('/api/auth/send-code', { email }),
+  // 注册用邮箱验证码（与找回密码场景隔离，要求邮箱未被占用）
+  sendRegisterCode: (email) => request.post('/api/auth/send-register-captcha', { email }),
   verifyCode: (data) => request.post('/api/auth/verify-code', data),
   resetPassword: (data) => request.post('/api/auth/reset-password', data),
   validateToken: () => request.get('/api/auth/validate'),
@@ -115,6 +117,8 @@ export const logApi = {
   detail: (id) => request.get(`/api/logs/${id}`),
   batchDelete: (ids) => request.post('/api/logs/batch-delete', { ids }),
   clean: (days) => request.post('/api/logs/clean', { days }),
+  modules: () => request.get('/api/logs/modules'),
+  moduleStats: () => request.get('/api/logs/module-stats'),
   getRetention: () => request.get('/api/logs/retention-days'),
   setRetention: (data) => request.put('/api/logs/retention-days', data)
 }
@@ -169,8 +173,21 @@ export const exportApi = {
 export const dbApi = {
   tables: () => request.get('/api/db/tables'),
   tableStructure: (tableName) => request.get(`/api/db/tables/${tableName}/structure`),
+  // 查看表数据：分页 + 关键字过滤 + 按列排序
+  tableData: (tableName, params) => request.get(`/api/db/tables/${tableName}/data`, { params }),
   query: (sql) => request.post('/api/db/query', { sql }),
   backup: () => request.get('/api/db/backup', { responseType: 'blob' })
+}
+
+// 账号头像（服务端持久化）
+export const avatarApi = {
+  upload: (formData, onProgress) => request.post('/api/user/avatar', formData, {
+    timeout: 0,
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: onProgress
+  }),
+  get: () => request.get('/api/user/avatar'),
+  remove: () => request.delete('/api/user/avatar')
 }
 
 // 配置

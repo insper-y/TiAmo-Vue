@@ -19,7 +19,24 @@
 
         <div class="form-group">
           <label class="form-label">邮箱</label>
-          <input v-model="form.email" type="email" class="form-input" placeholder="请输入邮箱" required />
+          <div class="input-with-btn">
+            <input v-model="form.email" type="email" class="form-input" placeholder="请输入常用邮箱" required />
+          </div>
+          <p class="form-hint">邮箱用于注册验证和找回密码，必须是未注册过的地址</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">邮箱验证码</label>
+          <div class="input-with-btn">
+            <input v-model="form.captcha" type="text" inputmode="numeric" maxlength="6"
+                   class="form-input" placeholder="6位验证码" required />
+            <button type="button" class="btn-code" :disabled="codeLoading || countdown > 0 || !emailValid"
+                    @click="sendCode">
+              {{ countdown > 0 ? countdown + 's' : (codeLoading ? '发送中…' : '获取验证码') }}
+            </button>
+          </div>
+          <p class="form-hint" v-if="codeSent">验证码已发送至 {{ form.email }}，5分钟内有效</p>
+          <p class="form-hint" v-else>请先填写邮箱，再获取验证码</p>
         </div>
 
         <div class="form-group">
@@ -59,7 +76,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi } from '../api'
 import { toast } from '../utils'
@@ -67,9 +84,48 @@ import { toast } from '../utils'
 const router = useRouter()
 const loading = ref(false)
 
+const codeLoading = ref(false)
+const codeSent = ref(false)
+const countdown = ref(0)
+let countdownTimer = null
+
+const emailValid = computed(() => /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(form.email.trim()))
+
+const startCountdown = (sec) => {
+  countdown.value = sec
+  clearInterval(countdownTimer)
+  countdownTimer = setInterval(() => {
+    countdown.value -= 1
+    if (countdown.value <= 0) clearInterval(countdownTimer)
+  }, 1000)
+}
+
+const sendCode = async () => {
+  if (!emailValid.value) {
+    toast.error('请先填写正确的邮箱地址')
+    return
+  }
+  codeLoading.value = true
+  try {
+    const res = await authApi.sendRegisterCode(form.email.trim())
+    if (res.code === 200) {
+      codeSent.value = true
+      toast.success(res.msg || '验证码已发送')
+      startCountdown(60)
+    } else {
+      toast.error(res.msg || '发送失败')
+    }
+  } catch (e) {
+    toast.error(e?.response?.data?.msg || '发送失败，请稍后重试')
+  } finally {
+    codeLoading.value = false
+  }
+}
+
 const form = reactive({
   username: '',
   email: '',
+  captcha: '',
   password: '',
   confirmPassword: '',
   inviteCode: '',
@@ -85,6 +141,14 @@ const handleRegister = async () => {
     toast.error('密码至少8位')
     return
   }
+  if (!emailValid.value) {
+    toast.error('请输入正确的邮箱地址')
+    return
+  }
+  if (form.captcha.trim().length !== 6) {
+    toast.error('请输入邮箱收到的6位验证码')
+    return
+  }
   if (!form.agree) {
     toast.warning('请先同意用户协议和隐私政策')
     return
@@ -97,11 +161,13 @@ const handleRegister = async () => {
       email: form.email,
       password: form.password,
       confirmPassword: form.confirmPassword,
-      inviteCode: form.inviteCode
+      inviteCode: form.inviteCode,
+      captcha: form.captcha.trim()
     })
 
     if (res.code === 200) {
       toast.success('注册成功，请登录')
+      codeSent.value = false
       router.push('/login')
     } else {
       toast.error(res.msg || '注册失败')
@@ -113,9 +179,32 @@ const handleRegister = async () => {
     loading.value = false
   }
 }
+onUnmounted(() => clearInterval(countdownTimer))
 </script>
 
 <style scoped>
+.input-with-btn {
+  display: flex;
+  gap: 8px;
+}
+.input-with-btn .form-input {
+  flex: 1;
+  min-width: 0;
+}
+.btn-code {
+  flex-shrink: 0;
+  padding: 0 14px;
+  height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-code:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
 .auth-page {
   min-height: calc(100vh - 60px);
   display: flex;
