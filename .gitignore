@@ -1,2 +1,7 @@
 node_modules/
 dist/
+
+# 构建产物与备份（本仓库约定：dist 不入库，备份目录只留本地用于回滚）
+dist/
+src.bak-*/
+*.bak-*
