@@ -290,7 +290,7 @@
       </section>
     </template>
 
-    <BottomNav active="settings" :is-admin="true" @go="onNav" />
+    <BottomNav active="settings" :is-admin="isAdmin" :permissions="userPermissions" @go="onNav" />
   </div>
 </template>
 
@@ -305,6 +305,7 @@ import { auth, toast, confirm } from '../utils'
 const router = useRouter()
 const route = useRoute()
 const isAdmin = computed(() => auth.isAdmin())
+const userPermissions = computed(() => auth.getPermissions())
 
 const goBack = () => {
   if (window.history.state && window.history.state.back) router.back()
@@ -507,12 +508,11 @@ const confirmReset = async () => {
   }
 }
 
+// 底部导航：操作日志 / 运行日志 / 我的已由 BottomNav 组件统一跳转
 const onNav = (key) => {
   if (key === 'home') router.push('/dashboard')
   else if (key === 'album') router.push('/dashboard?tab=album')
   else if (key === 'add') router.push('/dashboard?tab=album&upload=1')
-  else if (key === 'logs') router.push('/logs')
-  else if (key === 'runlog') router.push('/run-log')
 }
 
 /* ---------- 当前账号 ---------- */
@@ -836,24 +836,13 @@ onMounted(loadAll)
   .card { margin: 0 24px 12px; }
   .settings-page { padding-bottom: 24px; }
 }
+
+/* ---------- 桌面端（≥769px）：限宽居中 + 表单双列 ---------- */
+@media (min-width: 769px) {
+  .settings-page { padding-bottom: 30px; }
+  .page-title-bar, .card { max-width: 1100px; margin-left: auto; margin-right: auto; }
+  .page-title-bar { padding: 18px 24px 12px; }
+  .card { margin-top: 12px; }
+  .card-body { padding: 18px 22px 20px; }
+}
 </style>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

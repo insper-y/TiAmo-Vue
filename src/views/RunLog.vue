@@ -2,7 +2,7 @@
   <div class="runlog-page">
     <AppHeader show-back @back="goBack" />
 
-    <div class="page-title-bar">
+    <div class="page-title-bar pc-wrap-inner">
       <h1>运行日志</h1>
       <button class="btn btn-sm" @click="loadCurrent">刷新</button>
     </div>
@@ -66,6 +66,12 @@
       <span>{{ meta.readAt }}</span>
     </div>
 
+    <!-- 读取失败时给出原因与重试入口，而不是只弹一条转瞬即逝的提示 -->
+    <div v-if="readError" class="read-error">
+      <span>日志读取失败：{{ readError }}</span>
+      <button class="btn btn-sm" @click="loadCurrent">重试</button>
+    </div>
+
     <!-- 日志查看器 -->
     <div class="log-viewer">
       <div v-if="loading" class="log-placeholder">
@@ -83,7 +89,7 @@
       </div>
     </div>
 
-    <BottomNav active="runlog" :is-admin="true" @go="onNav" />
+    <BottomNav active="runlog" :is-admin="isAdmin" :permissions="userPermissions" @go="onNav" />
   </div>
 </template>
 
@@ -93,7 +99,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import BottomNav from '../components/BottomNav.vue'
 import { runLogApi, serverApi } from '../api'
-import { toast, confirm } from '../utils'
+import { auth, toast, confirm } from '../utils'
 
 const router = useRouter()
 const route = useRoute()
@@ -103,13 +109,15 @@ const goBack = () => {
   else router.push('/dashboard')
 }
 
+// 底部导航：操作日志 / 运行日志 / 我的已由 BottomNav 组件统一跳转
 const onNav = (key) => {
   if (key === 'home') router.push('/dashboard')
   else if (key === 'album') router.push('/dashboard?tab=album')
   else if (key === 'add') router.push('/dashboard?tab=album&upload=1')
-  else if (key === 'logs' && route.path !== '/logs') router.push('/logs')
-  else if (key === 'runlog' && route.path !== '/run-log') router.push('/run-log')
 }
+
+const isAdmin = computed(() => auth.isAdmin())
+const userPermissions = computed(() => auth.getPermissions())
 
 const module = ref('springboot')
 const nginxType = ref('access')
@@ -117,6 +125,7 @@ const lines = ref(200)
 const keyword = ref('')
 const loading = ref(false)
 const autoRefresh = ref(true)
+const readError = ref('')
 const logLines = ref([])
 const meta = reactive({ path: '', returnedLines: 0, readAt: '', sizeMB: '0' })
 const fileInfo = reactive({ springboot: null, 'nginx-access': null, 'nginx-error': null })
@@ -188,17 +197,20 @@ const loadCurrent = async () => {
       : await runLogApi.nginx({ ...params, type: nginxType.value })
 
     if (res.code === 200 && res.data) {
+      readError.value = ''
       logLines.value = res.data.lines || []
       meta.path = res.data.path || ''
       meta.returnedLines = res.data.returnedLines || 0
       meta.readAt = res.data.readAt || ''
     } else {
       logLines.value = []
-      toast.error(res.msg || '日志读取失败')
+      readError.value = res.msg || '接口返回异常'
+      toast.error(readError.value)
     }
   } catch (e) {
     logLines.value = []
-    toast.error(e?.response?.data?.msg || '日志读取失败')
+    readError.value = e?.response?.data?.msg || '网络异常，请稍后重试'
+    toast.error(readError.value)
   } finally {
     loading.value = false
   }
@@ -262,6 +274,20 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 桌面端读取失败提示 */
+.read-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 14px 10px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  border-radius: 10px;
+  color: #b91c1c;
+  font-size: 13px;
+}
 .runlog-page {
   min-height: 100vh;
   background: #f8fafc;
@@ -496,8 +522,28 @@ onUnmounted(() => {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ---------- 桌面端（≥769px）：整页限宽居中，状态卡与日志区按屏幕扩展 ---------- */
+@media (min-width: 769px) {
+  .runlog-page { padding-bottom: 0; }
+  .page-title-bar, .server-status, .module-tabs, .sub-tabs, .action-toolbar,
+  .log-info, .log-viewer, .read-error {
+    max-width: 1240px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .page-title-bar { padding: 18px 24px 12px; }
+  .server-status { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; padding: 0 24px; }
+  .module-tabs, .sub-tabs, .action-toolbar { padding-left: 24px; padding-right: 24px; }
+  .action-toolbar { flex-wrap: wrap; }
+  .toolbar-input { max-width: 320px; }
+  .log-info { padding: 10px 24px 0; }
+  .log-viewer { margin: 10px 24px 24px; }
+  /* 日志是这页的主体，桌面端给足高度；行距也放宽便于长文本阅读 */
+  .log-content { max-height: calc(100vh - 330px); min-height: 420px; }
+  .log-line { line-height: 1.65; }
+  .status-card { padding: 14px 16px; }
+  .log-line { font-size: 12px; }
+  .read-error { margin: 0 24px 10px; }
+}
 </style>
-
-
-
-

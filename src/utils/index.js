@@ -82,6 +82,15 @@ export const auth = {
     const user = auth.getUser()
     return !!(user && user.role === 1)
   },
+  // 已分配权限列表：permissions 本地存的是 JSON 字符串，解析失败一律按无权限处理
+  getPermissions: () => {
+    const u = auth.getUser()
+    if (!u || !u.permissions) return []
+    try {
+      const list = JSON.parse(u.permissions)
+      return Array.isArray(list) ? list : []
+    } catch (e) { return [] }
+  },
   // 登录态是否可用：有 Token 且未过期
   isAuthenticated: () => !!auth.getToken(),
   logout: () => {

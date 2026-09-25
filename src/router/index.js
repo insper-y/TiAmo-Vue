@@ -46,13 +46,13 @@ const routes = [
     path: '/logs',
     name: 'Logs',
     component: () => import('../views/Logs.vue'),
-    meta: { title: '操作日志', requiresAuth: true, requiresAdmin: true }
+    meta: { title: '操作日志', requiresAuth: true, requiresPerm: 'oplog' }
   },
   {
     path: '/run-log',
     name: 'RunLog',
     component: () => import('../views/RunLog.vue'),
-    meta: { title: '运行日志', requiresAuth: true, requiresAdmin: true }
+    meta: { title: '运行日志', requiresAuth: true, requiresPerm: 'runlog' }
   },
   {
     path: '/settings',
@@ -68,6 +68,32 @@ const routes = [
   }
 ]
 
+// 初始化状态探测：结果缓存 + 3 秒超时。
+// 守卫原本每次都同步等待这个请求，后端一慢就会出现「点了 tab 半天没反应」；
+// 因此只在首次真正请求，探测失败时放行，交给后续接口自行判断。
+let initCheckPromise = null
+const checkInitialized = () => {
+  if (initCheckPromise) return initCheckPromise
+  const task = (async () => {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 3000)
+    try {
+      const res = await fetch('/api/auth/check-init', { signal: ctrl.signal })
+      const data = await res.json()
+      if (data.code === 200 && data.data) return !!data.data.initialized
+      return true
+    } catch (e) {
+      return true
+    } finally {
+      clearTimeout(timer)
+    }
+  })()
+  // 尚未初始化时不缓存结果，建号完成后需要重新探测
+  task.then((ok) => { if (!ok) initCheckPromise = null })
+  initCheckPromise = task
+  return initCheckPromise
+}
+
 const router = createRouter({
   history: createWebHashHistory(),
   routes
@@ -77,15 +103,8 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - TiAmo 数据` : 'TiAmo 数据'
 
-  // 先检查系统是否已初始化
-  let initialized = true
-  try {
-    const res = await fetch('/api/auth/check-init')
-    const data = await res.json()
-    if (data.code === 200 && data.data) {
-      initialized = data.data.initialized
-    }
-  } catch (e) {}
+  // 先检查系统是否已初始化（带缓存与超时，不阻塞导航）
+  const initialized = await checkInitialized()
 
   // 没初始化 → 跳转到初始化页面
   if (!initialized && to.path !== '/init') {
@@ -113,6 +132,19 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAdmin && loggedIn && !auth.isAdmin()) {
     next('/dashboard')
     return
+  }
+
+  // 已登录但无对应权限的页面（日志类按 permissions 动态放行）
+  if (to.meta.requiresPerm && loggedIn) {
+    let perms = []
+    try {
+      const u = auth.getUser()
+      if (u?.permissions) perms = JSON.parse(u.permissions)
+    } catch (e) {}
+    if (!auth.isAdmin() && !perms.includes(to.meta.requiresPerm)) {
+      next('/dashboard')
+      return
+    }
   }
 
   // 已登录时不再停留在登录/注册页

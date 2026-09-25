@@ -19,12 +19,15 @@
       <button class="btn btn-sm btn-danger" @click="clearAll">清空所有</button>
     </div>
 
+
     <div class="filter-panel">
       <div class="filter-item">
         <label>模块</label>
         <select class="select" v-model="filters.module" @change="loadLogs">
           <option value="">全部</option>
-          <option v-for="m in modules" :key="m" :value="m">{{ m }}</option>
+          <option v-for="m in modules" :key="m.module" :value="m.module">
+            {{ m.legacy ? m.module + '（历史）' : m.module }}{{ m.count ? ' · ' + m.count : '' }}
+          </option>
         </select>
       </div>
       <div class="filter-item">
@@ -74,7 +77,29 @@
       </div>
     </div>
 
-    <div class="mobile-card-list">
+    <!-- 桌面端：日志列表用真表格 -->
+    <div class="pc-only pc-scroll">
+      <table class="pc-table">
+        <thead>
+          <tr><th>操作</th><th>模块</th><th>类型</th><th>操作人</th><th>IP</th><th>位置</th><th>状态</th><th>耗时</th><th>时间</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="log in logs" :key="log.id" @click="showDetail(log)" style="cursor:pointer">
+            <td class="wrap">{{ log.operation || log.description }}</td>
+            <td>{{ log.module }}</td>
+            <td class="muted">{{ log.type || log.operationType }}</td>
+            <td class="mono">{{ log.operator || log.username || '-' }}</td>
+            <td class="mono">{{ log.ip || '-' }}</td>
+            <td>{{ log.location || '-' }}</td>
+            <td :style="{color: log.status === '成功' ? '#059669' : '#dc2626'}">{{ log.status }}</td>
+            <td class="num">{{ log.costTime != null ? log.costTime + 'ms' : '-' }}</td>
+            <td class="mono muted">{{ log.createTime }}</td>
+          </tr>
+          <tr v-if="!loading && logs.length === 0"><td colspan="9" class="pc-table-empty">暂无日志记录</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="mobile-card-list mob-only">
       <div v-if="loading" class="loading-state">
         <div class="loading-spinner"></div>
         <p>加载中...</p>
@@ -98,6 +123,8 @@
     </div>
 
     <Pagination :total="total" v-model:currentPage="currentPage" v-model:pageSize="pageSize" @change="loadLogs" />
+
+    <BottomNav active="logs" :is-admin="isAdmin" :permissions="userPermissions" @go="onNav" />
 
     <!-- 详情弹窗 -->
     <div v-if="detailLog" class="modal-overlay" @click.self="detailLog = null">
@@ -125,18 +152,18 @@
       </div>
     </div>
 
-    <BottomNav active="logs" :is-admin="true" @go="onNav" />
+    
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Pagination from '../components/Pagination.vue'
 import AppHeader from '../components/AppHeader.vue'
 import BottomNav from '../components/BottomNav.vue'
 import { logApi } from '../api'
-import { toast, confirm } from '../utils'
+import { auth, toast, confirm } from '../utils'
 
 const router = useRouter()
 const route = useRoute()
@@ -147,13 +174,17 @@ const goBack = () => {
 }
 
 // 底部导航跳转
+// 底部导航：操作日志 / 运行日志 / 我的已由 BottomNav 组件统一跳转，
+// 这里只处理需要回到控制台页签的入口
 const onNav = (key) => {
   if (key === 'home') router.push('/dashboard')
   else if (key === 'album') router.push('/dashboard?tab=album')
   else if (key === 'add') router.push('/dashboard?tab=album&upload=1')
-  else if (key === 'logs' && route.path !== '/logs') router.push('/logs')
-  else if (key === 'runlog' && route.path !== '/run-log') router.push('/run-log')
 }
+
+// 底部导航按真实角色与权限渲染，避免把普通用户看得见却进不去的入口摆出来
+const isAdmin = computed(() => auth.isAdmin())
+const userPermissions = computed(() => auth.getPermissions())
 
 const loading = ref(false)
 const logs = ref([])
@@ -173,8 +204,23 @@ const filters = reactive({
   operator: ''
 })
 
-// 与后端 @OperationLog(module=...) 中出现的模块名保持一致
-const modules = ['认证管理', '用户管理', '商品管理', '相册管理', '回收站', '审批管理', '数据库管理', '数据导出', '系统设置', '日志管理']
+// 模块清单来自后端登记表（GET /api/logs/modules），与页面上的功能接口模块一一对应；
+// 下面是接口异常时的兜底，命名与后端 OperationModules 保持一致
+const FALLBACK_MODULES = [
+  '认证登录', '用户管理', '商品数据', '相册管理', '回收站审批', '数据库管理',
+  '数据导出', '操作日志管理', '运行日志管理', '系统设置', '邮件配置'
+].map(m => ({ module: m, count: 0, legacy: false }))
+
+const modules = ref(FALLBACK_MODULES)
+
+const loadModules = async () => {
+  try {
+    const res = await logApi.modules()
+    if (res.code === 200 && Array.isArray(res.data) && res.data.length) modules.value = res.data
+  } catch (e) {}
+}
+
+
 
 const loadLogs = async () => {
   loading.value = true
@@ -258,6 +304,7 @@ const showDetail = (log) => {
 onMounted(() => {
   loadLogs()
   loadStats()
+  loadModules()
 })
 
 onUnmounted(() => {
@@ -314,6 +361,17 @@ onUnmounted(() => {
   overflow-y: auto;
   white-space: pre-wrap;
 }
+
+/* ---------- 桌面端（≥769px）：限宽居中 + 筛选与统计条排布 ---------- */
+@media (min-width: 769px) {
+  .logs-page { padding-bottom: 20px; }
+  .page-title-bar, .action-toolbar, .filter-panel, .stats-bar,
+  .mobile-card-list, .pc-scroll, .modal-overlay > .modal { max-width: 1240px; }
+  .page-title-bar, .action-toolbar, .filter-panel, .stats-bar,
+  .mobile-card-list, .pc-scroll { margin-left: auto; margin-right: auto; }
+  .page-title-bar { padding: 18px 24px 12px; }
+  .action-toolbar, .filter-panel, .stats-bar { padding-left: 24px; padding-right: 24px; }
+  .filter-panel { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .stats-bar { gap: 26px; }
+}
 </style>
-
-

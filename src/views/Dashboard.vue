@@ -16,7 +16,7 @@
     </div>
 
     <!-- 内容区 -->
-    <main class="content">
+    <main class="content pc-wrap">
       <!-- 首页 -->
       <div v-if="activeTab === 'home'" class="home-view">
         <div class="welcome-card">
@@ -47,7 +47,7 @@
             <div class="recent-dot" :class="log.status === '成功' ? 'success' : 'error'"></div>
             <div class="recent-info">
               <span class="recent-action">{{ log.operation }}</span>
-              <span class="recent-time">{{ log.createTime }}</span>
+              <span class="recent-time">{{ fmtShort(log.createTime) }}</span>
             </div>
             <span class="recent-module">{{ log.module }}</span>
           </div>
@@ -64,7 +64,33 @@
           <input v-model="userSearch" class="input" placeholder="搜索用户名/邮箱" @keyup.enter="loadUsers" />
           <button class="btn" @click="loadUsers">搜索</button>
         </div>
-        <div class="mobile-card-list">
+        <!-- 桌面端：用户列表用真表格 -->
+        <div class="pc-only pc-scroll">
+          <table class="pc-table">
+            <thead>
+              <tr><th>ID</th><th>用户名</th><th>昵称</th><th>邮箱</th><th>角色</th><th>状态</th><th>注册时间</th><th class="wrap">操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="u in users" :key="u.id">
+                <td class="num">{{ u.id }}</td>
+                <td class="mono">{{ u.username }}</td>
+                <td>{{ u.nickname || '-' }}</td>
+                <td class="mono">{{ u.email || '-' }}</td>
+                <td><span class="u-role" :class="u.role === 1 ? 'u-admin' : 'u-user'">{{ u.role === 1 ? '管理员' : '普通用户' }}</span></td>
+                <td :style="{color: u.status === 1 ? '#059669' : '#dc2626'}">{{ u.status === 1 ? '正常' : '禁用' }}</td>
+                <td class="mono muted">{{ fmtShort(u.createTime) }}</td>
+                <td class="ops">
+                  <button class="btn btn-sm" @click="toggleUserStatus(u)">{{ u.status === 1 ? '禁用' : '启用' }}</button>
+                  <button class="btn btn-sm" @click="toggleUserRole(u)">{{ u.role === 1 ? '降为用户' : '升为管理员' }}</button>
+                  <button v-if="u.role !== 1" class="btn btn-sm" @click="openPermModal(u)">权限设置</button>
+                  <button class="btn btn-sm btn-danger" @click="deleteUser(u)">删除</button>
+                </td>
+              </tr>
+              <tr v-if="users.length === 0"><td colspan="8" class="pc-table-empty">暂无用户</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mobile-card-list mob-only">
           <div v-if="users.length === 0" class="empty-state">暂无用户</div>
           <div v-for="u in users" :key="u.id" class="mobile-card">
             <div class="mobile-card-header">
@@ -114,6 +140,125 @@
         </div>
       </div>
 
+      <!-- 表结构弹窗 -->
+      <div v-if="structureModalVisible" class="modal-overlay" @click.self="structureModalVisible = false">
+        <div class="modal-content" style="max-width:520px;width:92%;max-height:80vh;display:flex;flex-direction:column;">
+          <div class="modal-header">
+            <h3>🗄️ {{ structureTableName }} 表结构</h3>
+            <button class="modal-close" @click="structureModalVisible = false">×</button>
+          </div>
+          <div class="modal-body" style="overflow-y:auto;">
+            <div class="section-title" style="margin:0 0 8px;">字段</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:16px;">
+              <tr style="background:#f1f5f9;">
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">#</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">字段名</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">类型</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">可空</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">键</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">默认值</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">注释</th>
+              </tr>
+              <tr v-for="c in structureColumns" :key="c.columnName">
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;color:#94a3b8;">{{ c.position }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;font-weight:600;">{{ c.columnName }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;">{{ c.columnType }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;">{{ c.nullable === 'YES' ? '是' : '否' }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;">{{ c.columnKey || '-' }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;">{{ c.defaultValue == null ? '-' : c.defaultValue }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;">{{ c.comment || '-' }}</td>
+              </tr>
+            </table>
+            <div class="section-title" v-if="structureIndexes.length > 0" style="margin:0 0 8px;">索引</div>
+            <table v-if="structureIndexes.length > 0" style="width:100%;font-size:12px;border-collapse:collapse;">
+              <tr style="background:#f1f5f9;">
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">索引名</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">字段</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">唯一</th>
+                <th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">类型</th>
+              </tr>
+              <tr v-for="ix in structureIndexes" :key="ix.indexName + ix.seqInIndex">
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;font-weight:600;">{{ ix.indexName }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;">{{ ix.columnName }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;">{{ ix.nonUnique === 0 ? '是' : '否' }}</td>
+                <td style="padding:6px 8px;border:1px solid #e2e8f0;">{{ ix.indexType }}</td>
+              </tr>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" @click="structureModalVisible = false">关闭</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 表数据弹窗 -->
+      <div v-if="dataModalVisible" class="modal-overlay" @click.self="closeTableData">
+        <div class="modal-content" style="max-width:860px;width:95%;max-height:86vh;display:flex;flex-direction:column;">
+          <div class="modal-header">
+            <h3>🗄️ {{ dataTableName }} 表数据</h3>
+            <button class="modal-close" @click="closeTableData">×</button>
+          </div>
+          <div class="modal-body" style="overflow:hidden;display:flex;flex-direction:column;gap:10px;">
+            <div class="db-data-toolbar">
+              <input
+                v-model="dataKeyword"
+                class="input"
+                placeholder="关键字过滤（匹配所有字段）"
+                @keyup.enter="loadTableData(1)"
+              />
+              <button class="btn" @click="loadTableData(1)" :disabled="dataLoading">
+                {{ dataLoading ? '查询中…' : '查询' }}
+              </button>
+              <select class="select" v-model.number="dataSize" @change="loadTableData(1)" style="width:auto;">
+                <option :value="10">10行/页</option>
+                <option :value="20">20行/页</option>
+                <option :value="50">50行/页</option>
+              </select>
+            </div>
+            <div class="db-data-meta">
+              <span>共 {{ dataTotal }} 条</span>
+              <span>第 {{ dataPage }} / {{ Math.max(dataPages, 1) }} 页</span>
+              <span v-if="dataSortColumn">排序：{{ dataSortColumn }} {{ dataSortOrder === 'DESC' ? '↓' : '↑' }}</span>
+              <span v-if="dataMaskedColumns.length" class="db-mask-tip">凭据类字段已掩码：{{ dataMaskedColumns.join('、') }}</span>
+            </div>
+            <div class="db-data-scroll">
+              <div v-if="dataLoading" class="loading-state">加载中…</div>
+              <div v-else-if="dataRows.length === 0" class="empty-state">该表暂无数据</div>
+              <table v-else class="db-data-table">
+                <thead>
+                  <tr>
+                    <th class="db-row-index">#</th>
+                    <th
+                      v-for="c in dataColumns"
+                      :key="c"
+                      :class="{ sorted: dataSortColumn === c }"
+                      @click="sortTableData(c)"
+                    >{{ c }}<span v-if="dataSortColumn === c">{{ dataSortOrder === 'DESC' ? ' ↓' : ' ↑' }}</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(r, ri) in dataRows" :key="ri">
+                    <td class="db-row-index">{{ (dataPage - 1) * dataSize + ri + 1 }}</td>
+                    <td v-for="c in dataColumns" :key="c" :title="formatCell(r[c])">
+                      <span v-if="r[c] === null || r[c] === ''" class="db-cell-null">{{ r[c] === null ? 'NULL' : '(空)' }}</span>
+                      <span v-else>{{ clip(formatCell(r[c])) }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="db-data-pager">
+              <button class="btn" :disabled="dataPage <= 1 || dataLoading" @click="loadTableData(dataPage - 1)">上一页</button>
+              <button class="btn" :disabled="dataPage >= dataPages || dataLoading" @click="loadTableData(dataPage + 1)">下一页</button>
+              <button class="btn" @click="loadTableData(dataPage)" :disabled="dataLoading">刷新</button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" @click="closeTableData">关闭</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 回收站 -->
       <div v-if="activeTab === 'recycle'" class="recycle-view">
         <div class="view-header">
@@ -148,7 +293,7 @@
       </div>
 
       <!-- 数据库管理 -->
-      <div v-if="activeTab === 'database' && isAdmin" class="database-view">
+      <div v-if="activeTab === 'database' && (isAdmin || userPermissions.includes('database'))" class="database-view">
         <div class="view-header">
           <h3>数据库管理</h3>
           <button class="btn" @click="loadTables">刷新</button>
@@ -156,7 +301,30 @@
         <div class="action-bar">
           <button class="btn" @click="backupDatabase">备份数据库</button>
         </div>
-        <div class="mobile-card-list">
+        <!-- 桌面端：数据表用真表格，操作列保留查看结构/查看数据 -->
+        <div class="pc-only pc-scroll">
+          <table class="pc-table">
+            <thead>
+              <tr><th>表名</th><th class="wrap">注释</th><th class="num">行数</th><th class="num">数据大小</th><th class="num">索引大小</th><th>更新时间</th><th class="wrap">操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="t in tables" :key="t.tableName">
+                <td class="mono"><b>{{ t.tableName }}</b></td>
+                <td class="wrap">{{ t.comment || '-' }}</td>
+                <td class="num">{{ t.rowCount }}</td>
+                <td class="num">{{ t.dataSizeMB }} MB</td>
+                <td class="num">{{ t.indexSizeMB }} MB</td>
+                <td class="mono muted">{{ fmtShort(t.updateTime) }}</td>
+                <td class="ops">
+                  <button class="btn btn-sm" @click="viewTableStructure(t.tableName)">查看结构</button>
+                  <button class="btn btn-sm" @click="viewTableData(t.tableName)">查看数据</button>
+                </td>
+              </tr>
+              <tr v-if="tables.length === 0"><td colspan="7" class="pc-table-empty">暂无数据表</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mobile-card-list mob-only">
           <div v-if="tables.length === 0" class="empty-state">暂无数据表</div>
           <div v-for="t in tables" :key="t.tableName" class="mobile-card">
             <div class="mobile-card-header">
@@ -170,6 +338,7 @@
             </div>
             <div class="mobile-card-footer">
               <button class="btn" @click="viewTableStructure(t.tableName)">查看结构</button>
+              <button class="btn" @click="viewTableData(t.tableName)">查看数据</button>
             </div>
           </div>
         </div>
@@ -221,7 +390,9 @@
           </div>
           <div class="form-group">
             <label class="form-label">授权码</label>
-            <input v-model="emailConfig.authCode" type="password" class="input" placeholder="SMTP授权码" />
+            <input v-model="emailConfig.authCode" type="password" class="input"
+                   :placeholder="emailConfig.authCodeSet ? '已配置，留空则不修改' : 'SMTP授权码'" autocomplete="new-password" />
+            <p class="form-hint" v-if="emailConfig.authCodeSet">授权码已保存，不重新填写不会覆盖原值</p>
           </div>
           <div class="form-group">
             <label class="checkbox-group">
@@ -229,6 +400,7 @@
               <span>启用日报邮件通知（每天20:00发送操作日志和运行日志）</span>
             </label>
           </div>
+          <p class="smtp-source">当前实际发信使用：{{ smtpSourceText }}</p>
           <button class="btn-primary btn-block" @click="saveEmailConfig">保存配置</button>
         </div>
       </div>
@@ -305,7 +477,7 @@
     </main>
 
     <!-- 底部导航 -->
-    <BottomNav :active="navActive" :is-admin="isAdmin" @go="onNav" />
+    <BottomNav :active="navActive" :is-admin="isAdmin" :permissions="userPermissions" @go="onNav" />
   </div>
 </template>
 
@@ -329,11 +501,20 @@ const isAdmin = computed(() => user.value?.role === 1)
 
 // 页签与 URL 同步：刷新后停留在当前页面
 const validTabs = ['home', 'users', 'database', 'export', 'email', 'album']
-const initTab = validTabs.includes(route.query.tab) ? route.query.tab : 'home'
+// 管理员专属页签：普通用户即使手改 URL 上的 tab 参数也回不到该视图
+const adminOnlyTabs = ['email']
+
+const guardTab = (key) => {
+  if (!validTabs.includes(key)) return 'home'
+  if (adminOnlyTabs.includes(key) && !auth.isAdmin()) return 'home'
+  return key
+}
+
+const initTab = guardTab(route.query.tab)
 const activeTab = ref(initTab)
 
 const setTab = (key) => {
-  const tab = validTabs.includes(key) ? key : 'home'
+  const tab = guardTab(key)
   activeTab.value = tab
   const query = { ...route.query }
   if (tab === 'home') delete query.tab
@@ -354,9 +535,7 @@ const onNav = (key) => {
   if (key === 'home') setTab('home')
   else if (key === 'album') setTab('album')
   else if (key === 'add') triggerUpload('image')
-  else if (key === 'logs') goRoute('/logs')
-  else if (key === 'runlog') goRoute('/run-log')
-  else if (key === 'me') goRoute('/profile')
+  // 操作日志 / 运行日志 / 我的属于纯路由跳转，已由 BottomNav 统一处理
 }
 
 // 切换页签时刷新对应数据，保证内容最新
@@ -364,7 +543,7 @@ const refreshTab = (tab) => {
   if (tab === 'album') loadAlbum()
   else if (tab === 'users' && isAdmin.value) loadUsers()
   else if (tab === 'recycle') loadRecycle()
-  else if (tab === 'database' && isAdmin.value) loadTables()
+  else if (tab === 'database' && (isAdmin.value || userPermissions.value.includes('database'))) loadTables()
   else if (tab === 'email' && isAdmin.value) loadEmailConfig()
   else if (tab === 'pending' && isAdmin.value) loadPending()
 }
@@ -373,7 +552,7 @@ const goRoute = (path) => router.push(path)
 
 // 浏览器前进/后退时同步页签
 watch(() => route.query.tab, (t) => {
-  const tab = validTabs.includes(t) ? t : 'home'
+  const tab = guardTab(t)
   if (tab !== activeTab.value) activeTab.value = tab
 })
 
@@ -383,7 +562,7 @@ const allTabs = [
   { key: 'users', name: '用户管理', icon: '👥', admin: true },
   { key: 'database', name: '数据库', icon: '🗄️', admin: true },
   { key: 'export', name: '数据导出', icon: '📤', admin: true },
-  { key: 'email', name: '邮件配置', icon: '📧', admin: true },
+  { key: 'email', name: '邮件配置', icon: '📧', admin: true, adminOnly: true },
   { key: 'album', name: '相册', icon: '🖼️', admin: false },
   { key: 'pending', name: '待审批', icon: '⏳', admin: true, badge: 0 }
 ]
@@ -397,13 +576,14 @@ const userPermissions = computed(() => {
 })
 
 const visibleTabs = computed(() => allTabs.filter(t => {
+  if (t.adminOnly) return isAdmin.value
   if (!t.admin) return true
   if (isAdmin.value) return true
   return userPermissions.value.includes(t.key)
 }))
 
 const quickFunctions = computed(() => {
-  // 普通用户只保留相册与数据导出；回收站、日志类、用户列表、系统设置均属管理员
+  // 普通用户按已分配权限动态展示功能入口；回收站、日志类、用户列表、系统设置仍属管理员
   const common = [
     { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' }
   ]
@@ -411,8 +591,14 @@ const quickFunctions = computed(() => {
     const u = auth.getUser()
     try {
       const perms = u?.permissions ? JSON.parse(u.permissions) : []
-      if (perms.includes('export')) {
-        common.push({ key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' })
+      const permFuncs = {
+        export: { key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' },
+        oplog: { key: 'oplog', name: '操作日志', route: '/logs', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+        runlog: { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' },
+        database: { key: 'database', name: '数据库', icon: '🗄️', bg: 'linear-gradient(135deg,#0f766e,#115e59)' }
+      }
+      for (const p of perms) {
+        if (permFuncs[p]) common.push(permFuncs[p])
       }
     } catch (e) {}
     return common
@@ -420,6 +606,7 @@ const quickFunctions = computed(() => {
   return [
     { key: 'users', name: '用户列表', icon: '👥', bg: 'linear-gradient(135deg,#8b5cf6,#6d28d9)' },
     ...common,
+    { key: 'database', name: '数据库', icon: '🗄️', bg: 'linear-gradient(135deg,#0f766e,#115e59)' },
     { key: 'oplog', name: '操作日志', route: '/logs', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
     { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' },
     { key: 'settings', name: '系统设置', route: '/settings', icon: '🛠️', bg: 'linear-gradient(135deg,#6366f1,#4f46e5)' }
@@ -457,12 +644,31 @@ const recycleList = ref([])
 
 // 数据库
 const tables = ref([])
+// 表数据弹窗
+const dataModalVisible = ref(false)
+const dataTableName = ref('')
+const dataColumns = ref([])
+const dataRows = ref([])
+const dataTotal = ref(0)
+const dataPages = ref(1)
+const dataPage = ref(1)
+const dataSize = ref(20)
+const dataKeyword = ref('')
+const dataLoading = ref(false)
+const dataSortColumn = ref('')
+const dataSortOrder = ref('ASC')
+const dataMaskedColumns = ref([])
 
 // 邮件配置
 const emailConfig = reactive({
   toEmail: '', smtpHost: 'smtp.qq.com', smtpPort: 465,
-  fromEmail: '', authCode: '', enableDailyReport: false
+  fromEmail: '', authCode: '', authCodeSet: false, smtpSource: 'application.yml',
+  enableDailyReport: false
 })
+// 明确告诉管理员当前发信走的是界面配置还是配置文件，避免"改了不生效"的困惑
+const smtpSourceText = computed(() => emailConfig.smtpSource === '邮件配置页'
+  ? '邮件配置页填写的 SMTP 参数（保存后立即生效）'
+  : '配置文件 application.yml 的默认 SMTP（界面未填完整时回落）')
 
 // 相册
 const albumTab = ref('all')
@@ -560,15 +766,20 @@ const deleteUser = async (u) => {
 
 
 // ---------- 权限设置 ----------
+// 邮件配置为管理员专属功能，不再出现在可分配权限里
 const assignablePerms = [
   { key: 'export', name: '数据导出', icon: '📤' },
   { key: 'oplog', name: '操作日志', icon: '📋' },
   { key: 'runlog', name: '运行日志', icon: '📊' },
-  { key: 'database', name: '数据库管理', icon: '🗄️' },
-  { key: 'email', name: '邮件配置', icon: '📧' }
+  { key: 'database', name: '数据库管理', icon: '🗄️' }
 ]
 
 const permModalVisible = ref(false)
+// 表结构弹窗状态
+const structureModalVisible = ref(false)
+const structureTableName = ref('')
+const structureColumns = ref([])
+const structureIndexes = ref([])
 const permTargetUser = ref(null)
 const selectedPerms = ref([])
 const permSaving = ref(false)
@@ -654,22 +865,101 @@ const backupDatabase = async () => {
 const viewTableStructure = async (tableName) => {
   try {
     const res = await dbApi.tableStructure(tableName)
-    if (res.code === 200) {
-      const cols = res.data || []
-      let html = `<h3 style="margin-bottom:12px;">${tableName} 表结构</h3><table style="width:100%;font-size:12px;border-collapse:collapse;"><tr style="background:#f1f5f9;"><th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">字段</th><th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">类型</th><th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">注释</th></tr>`
-      cols.forEach(c => {
-        html += `<tr><td style="padding:6px 8px;border:1px solid #e2e8f0;">${c.columnName || c.Field}</td><td style="padding:6px 8px;border:1px solid #e2e8f0;">${c.columnType || c.Type}</td><td style="padding:6px 8px;border:1px solid #e2e8f0;">${c.comment || c.Comment || '-'}</td></tr>`
-      })
-      html += '</table>'
-      alert(html)
+    if (res.code === 200 && res.data) {
+      structureTableName.value = tableName
+      structureColumns.value = res.data.columns || []
+      structureIndexes.value = res.data.indexes || []
+      structureModalVisible.value = true
+    } else {
+      toast.error('加载表结构失败')
     }
   } catch (e) { toast.error('加载失败') }
+}
+
+const viewTableData = async (tableName) => {
+  dataTableName.value = tableName
+  dataKeyword.value = ''
+  dataSortColumn.value = ''
+  dataSortOrder.value = 'ASC'
+  dataModalVisible.value = true
+  await loadTableData(1)
+}
+
+const closeTableData = () => {
+  dataModalVisible.value = false
+  dataRows.value = []
+  dataColumns.value = []
+}
+
+const loadTableData = async (page) => {
+  if (!dataTableName.value || dataLoading.value) return
+  dataLoading.value = true
+  try {
+    const res = await dbApi.tableData(dataTableName.value, {
+      page: page || 1,
+      size: dataSize.value,
+      keyword: dataKeyword.value || undefined,
+      orderBy: dataSortColumn.value || undefined,
+      order: dataSortOrder.value || 'ASC'
+    })
+    if (res.code === 200 && res.data) {
+      dataColumns.value = res.data.columns || []
+      dataRows.value = res.data.rows || []
+      dataTotal.value = Number(res.data.total || 0)
+      dataPages.value = Number(res.data.pages || 1)
+      dataPage.value = Number(res.data.page || page || 1)
+      dataSortColumn.value = res.data.sortColumn || ''
+      dataSortOrder.value = res.data.sortOrder || 'ASC'
+      dataMaskedColumns.value = res.data.maskedColumns || []
+    } else {
+      toast.error(res.msg || '加载表数据失败')
+    }
+  } catch (e) {
+    toast.error('加载表数据失败')
+  } finally {
+    dataLoading.value = false
+  }
+}
+
+const sortTableData = (col) => {
+  if (dataSortColumn.value === col) {
+    dataSortOrder.value = dataSortOrder.value === 'ASC' ? 'DESC' : 'ASC'
+  } else {
+    dataSortColumn.value = col
+    dataSortOrder.value = 'ASC'
+  }
+  loadTableData(1)
+}
+
+const formatCell = (v) => {
+  if (v === null || v === undefined) return 'NULL'
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
+const clip = (str) => (str && str.length > 60 ? str.slice(0, 60) + '…' : str)
+
+// 桌面表格里统一成 YYYY-MM-DD HH:mm:ss，去掉 ISO 的 T
+const fmtShort = (t) => {
+  if (!t) return '-'
+  const s = String(t).replace('T', ' ')
+  return s.length >= 19 ? s.slice(0, 19) : s
 }
 
 const loadEmailConfig = async () => {
   try {
     const res = await configApi.getEmail()
-    if (res.code === 200 && res.data) Object.assign(emailConfig, res.data)
+    if (res.code === 200 && res.data) {
+      const d = { ...res.data }
+      // 授权码后端只回掩码标记，不回填明文，也不把掩码写回输入框
+      emailConfig.authCodeSet = d.authCodeSet === 'true' || d.authCodeSet === true
+      delete d.authCodeSet; delete d.authCodeMasked
+      if (d.enableDailyReport !== undefined) {
+        d.enableDailyReport = d.enableDailyReport === true || d.enableDailyReport === 'true'
+      }
+      Object.assign(emailConfig, d)
+      if (emailConfig.enableDailyReport === undefined) emailConfig.enableDailyReport = false
+    }
   } catch (e) {}
 }
 
@@ -1451,6 +1741,24 @@ onUnmounted(() => {
   margin-bottom: 12px; grid-template-columns: repeat(6, 1fr); }
 }
 
+/* ---------- 表数据弹窗 ---------- */
+.db-data-toolbar { display: flex; gap: 8px; align-items: center; }
+.db-data-toolbar .input { flex: 1; min-width: 0; }
+.db-data-meta { display: flex; gap: 14px; font-size: 12px; color: #64748b; }
+.db-data-scroll { flex: 1; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.db-data-table { width: max-content; min-width: 100%; font-size: 12px; border-collapse: collapse; }
+.db-data-table th, .db-data-table td { padding: 6px 10px; border: 1px solid #e2e8f0; white-space: nowrap; text-align: left; }
+.db-data-table th { background: #f1f5f9; position: sticky; top: 0; cursor: pointer; user-select: none; }
+.db-data-table th.sorted { color: #4f46e5; }
+.db-data-table td { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.db-row-index { color: #94a3b8; }
+.db-cell-null { color: #cbd5e1; font-style: italic; }
+.db-mask-tip { color: #b45309; }
+.db-data-pager { display: flex; gap: 8px; justify-content: flex-end; }
+.loading-state { padding: 24px; text-align: center; color: #94a3b8; font-size: 13px; }
+
+.smtp-source { font-size: 12px; color: #64748b; margin: 4px 0 10px; }
+
 /* ---------- 权限设置弹窗 ---------- */
 .modal-overlay {
   position: fixed;
@@ -1509,3 +1817,26 @@ onUnmounted(() => {
 
 
 
+
+<style>
+/* 桌面端布局（放在非 scoped 块，避免与各页 scoped 规则争优先级） */
+@media (min-width: 769px) {
+  .u-role { font-size: 11px; line-height: 18px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .u-admin { background: #ede9fe; color: #6d28d9; }
+  .u-user { background: #e0f2fe; color: #0369a1; }
+}
+
+/* ---------- 桌面端（≥769px）栅格与密度 ---------- */
+@media (min-width: 769px) {
+  .content { padding: 18px 24px 40px; }
+  .function-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
+  .mobile-card-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+  .album-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .recent-list { max-width: 980px; }
+  .welcome-card { padding: 20px 22px; }
+  .export-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+  .config-form { max-width: 620px; }
+  .smtp-source { font-size: 12px; color: #64748b; margin: 4px 0 10px; }
+  .view-header h3 { font-size: 17px; }
+}
+</style>

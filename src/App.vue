@@ -44,23 +44,59 @@ onUnmounted(() => {
 #app {
   width: 100%;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 视图原本各自写死 min-height:100vh，又都为 fixed 的底部导航预留了 80~90px
+   padding-bottom，两者叠加会把备案号整段推到一屏之外。这里统一收敛：
+   视图只负责填满剩余空间，导航让位的高度改由 footer 自己处理。
+   id 选择器的优先级高于视图 scoped 样式里的类选择器，因此能稳定覆盖。 */
+#app > *:not(.icp-footer) {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 0;
 }
 
 .icp-footer {
+  flex: 0 0 auto;
   text-align: center;
-  padding: 16px 16px 24px;
-  font-size: 11px;
-  color: #94a3b8;
+  padding: 14px 16px 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #64748b;
   background: transparent;
 }
 
-.icp-footer a {
-  color: #94a3b8;
-  text-decoration: none;
+/* 一条极浅的分隔线，把备案号与上方内容分成两层，不再像悬空飘在那里 */
+.icp-footer::before {
+  content: "";
+  display: block;
+  height: 1px;
+  margin: 0 auto 10px;
+  background: rgba(148, 163, 184, 0.26);
 }
 
-.icp-footer a:hover {
+/* 链接保持克制但可读，并把点击区撑到手指的舒适尺寸 */
+.icp-footer a {
+  display: inline-block;
+  padding: 4px 8px;
   color: #64748b;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icp-footer a:hover,
+.icp-footer a:active {
+  color: #475569;
+}
+
+/* 移动端：底部导航 fixed（约 50px + 安全区）。备案号留在正常文档流里，
+   靠自身下内边距让开这段高度——滚动时不压内容，也不会被导航盖住。 */
+@media (max-width: 768px) {
+  .icp-footer {
+    padding: 12px 12px calc(62px + env(safe-area-inset-bottom));
+  }
 }
 </style>
 
