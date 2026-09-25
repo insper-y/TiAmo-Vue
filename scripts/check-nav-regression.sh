@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 底部导航 + 备案号排版 回归检查 v3
+# 底部导航 + 备案号排版 回归检查 v4
 #
 # 覆盖两类历史事故：
 #  A) Logs / RunLog / Settings 各自实现 onNav 却漏掉 me 分支
@@ -14,7 +14,10 @@
 #   QW_WEB=/opt/tiamo/frontend bash scripts/check-nav-regression.sh   # 连带核对线上产物
 set -uo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# 先解析软链：服务器上的 /opt/tiamo/check-nav-regression.sh 是指向本文件的软链，
+# 不解析会把仓库根算成软链所在目录
+SELF="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
+REPO="$(cd "$(dirname "$SELF")/.." && pwd)"
 SRC="${QW_SRC:-$REPO/src}"
 WEB="${QW_WEB:-/opt/tiamo/frontend}"
 FAIL=0
