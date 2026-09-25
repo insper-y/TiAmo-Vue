@@ -290,7 +290,7 @@
       </section>
     </template>
 
-    <BottomNav active="" @go="onNav" />
+    <BottomNav active="settings" :is-admin="true" @go="onNav" />
   </div>
 </template>
 
@@ -443,13 +443,7 @@ const handleRestore = async (e) => {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const token = localStorage.getItem('tiamo_token') || ''
-    const res = await fetch('/api/system/restore', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + token },
-      body: formData
-    })
-    const data = await res.json()
+    const data = await systemApi.restore(formData)
     if (data.code === 200) {
       toast.success('恢复成功！')
       setTimeout(() => window.location.reload(), 1500)
@@ -843,6 +837,8 @@ onMounted(loadAll)
   .settings-page { padding-bottom: 24px; }
 }
 </style>
+
+
 
 
 

@@ -73,6 +73,7 @@ export const authApi = {
 // 用户管理
 export const userApi = {
   list: (params) => request.get('/api/admin/users', { params }),
+  updatePermissions: (id, permissions) => request.put(`/api/admin/users/${id}/permissions`, { permissions }),
   updateRole: (id, role) => request.put(`/api/admin/users/${id}/role`, { role }),
   updateStatus: (id, status) => request.put(`/api/admin/users/${id}/status`, { status }),
   delete: (id) => request.delete(`/api/admin/users/${id}`)
@@ -142,7 +143,8 @@ export const systemApi = {
   saveSettings: (data) => request.put('/api/system/settings', data),
   cleanupPreview: () => request.get('/api/system/cleanup/preview'),
   cleanup: (data) => request.post('/api/system/cleanup', data, { timeout: 300000 }),
-  permissions: () => request.get('/api/system/permissions')
+  permissions: () => request.get('/api/system/permissions'),
+  restore: (formData) => request.post('/api/system/restore', formData, { timeout: 300000 })
 }
 
 // 服务器状态
@@ -179,7 +181,6 @@ export const configApi = {
 
 // 相册（上传接口：支持进度回调，取消超时限制避免大文件中断）
 const uploadConfig = (onProgress) => ({
-  headers: { 'Content-Type': 'multipart/form-data' },
   timeout: 0,
   onUploadProgress: onProgress
 })
@@ -200,9 +201,13 @@ export default request
 // 分片上传
 export const chunkApi = {
   upload: (fd) => request.post('/api/chunk/upload', fd, {
-    headers: { 'Content-Type': 'multipart/form-data' }, timeout: 90000
+    timeout: 90000
   }),
   status: (qid) => request.get(`/api/chunk/status/${qid}`, { timeout: 15000 }),
   merge: (payload) => request.post('/api/chunk/merge', payload, { timeout: 120000 })
 }
+
+
+
+
 

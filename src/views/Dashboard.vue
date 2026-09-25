@@ -82,12 +82,37 @@
             <div class="mobile-card-footer">
               <button class="btn" @click="toggleUserStatus(u)">{{ u.status === 1 ? '禁用' : '启用' }}</button>
               <button class="btn" @click="toggleUserRole(u)">{{ u.role === 1 ? '降为用户' : '升为管理员' }}</button>
+              <button v-if="u.role !== 1" class="btn" @click="openPermModal(u)">权限设置</button>
               <button class="btn btn-danger" @click="deleteUser(u)">删除</button>
             </div>
           </div>
         </div>
       </div>
 
+
+      <!-- 权限设置弹窗 -->
+      <div v-if="permModalVisible" class="modal-overlay" @click.self="permModalVisible = false">
+        <div class="modal-content" style="max-width:400px;width:90%;">
+          <div class="modal-header">
+            <h3>🔐 权限设置 - {{ permTargetUser?.username }}</h3>
+            <button class="modal-close" @click="permModalVisible = false">×</button>
+          </div>
+          <div class="modal-body">
+            <p style="color:#666;margin-bottom:16px;font-size:14px;">勾选要分配给该用户的权限：</p>
+            <div class="perm-list">
+              <label v-for="p in assignablePerms" :key="p.key" class="perm-item">
+                <input type="checkbox" :value="p.key" v-model="selectedPerms" />
+                <span class="perm-icon">{{ p.icon }}</span>
+                <span class="perm-text">{{ p.name }}</span>
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" @click="permModalVisible = false">取消</button>
+            <button class="btn-primary" @click="savePermissions" :disabled="permSaving">{{ permSaving ? '保存中…' : '保存权限' }}</button>
+          </div>
+        </div>
+      </div>
 
       <!-- 回收站 -->
       <div v-if="activeTab === 'recycle'" class="recycle-view">
@@ -303,7 +328,7 @@ const user = ref(auth.getUser())
 const isAdmin = computed(() => user.value?.role === 1)
 
 // 页签与 URL 同步：刷新后停留在当前页面
-const validTabs = ['home', 'users', 'recycle', 'database', 'export', 'email', 'album', 'pending']
+const validTabs = ['home', 'users', 'database', 'export', 'email', 'album']
 const initTab = validTabs.includes(route.query.tab) ? route.query.tab : 'home'
 const activeTab = ref(initTab)
 
@@ -356,26 +381,44 @@ watch(() => route.query.tab, (t) => {
 const allTabs = [
   { key: 'home', name: '首页', icon: '🏠', admin: false },
   { key: 'users', name: '用户管理', icon: '👥', admin: true },
-  { key: 'recycle', name: '回收站', icon: '🗑️', admin: true },
   { key: 'database', name: '数据库', icon: '🗄️', admin: true },
-  { key: 'export', name: '数据导出', icon: '📤', admin: false },
+  { key: 'export', name: '数据导出', icon: '📤', admin: true },
   { key: 'email', name: '邮件配置', icon: '📧', admin: true },
   { key: 'album', name: '相册', icon: '🖼️', admin: false },
   { key: 'pending', name: '待审批', icon: '⏳', admin: true, badge: 0 }
 ]
 
-const visibleTabs = computed(() => allTabs.filter(t => !t.admin || isAdmin.value))
+const userPermissions = computed(() => {
+  try {
+    const u = auth.getUser()
+    if (u?.permissions) return JSON.parse(u.permissions)
+  } catch (e) {}
+  return []
+})
+
+const visibleTabs = computed(() => allTabs.filter(t => {
+  if (!t.admin) return true
+  if (isAdmin.value) return true
+  return userPermissions.value.includes(t.key)
+}))
 
 const quickFunctions = computed(() => {
   // 普通用户只保留相册与数据导出；回收站、日志类、用户列表、系统设置均属管理员
   const common = [
-    { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' },
-    { key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' }
+    { key: 'album', name: '相册', icon: '🖼️', bg: 'linear-gradient(135deg,#10b981,#059669)' }
   ]
-  if (!auth.isAdmin()) return common
+  if (!auth.isAdmin()) {
+    const u = auth.getUser()
+    try {
+      const perms = u?.permissions ? JSON.parse(u.permissions) : []
+      if (perms.includes('export')) {
+        common.push({ key: 'export', name: '数据导出', icon: '📤', bg: 'linear-gradient(135deg,#0ea5e9,#0284c7)' })
+      }
+    } catch (e) {}
+    return common
+  }
   return [
     { key: 'users', name: '用户列表', icon: '👥', bg: 'linear-gradient(135deg,#8b5cf6,#6d28d9)' },
-    { key: 'recycle', name: '回收站', icon: '🗑️', bg: 'linear-gradient(135deg,#f59e0b,#f97316)' },
     ...common,
     { key: 'oplog', name: '操作日志', route: '/logs', icon: '📋', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
     { key: 'runlog', name: '运行日志', route: '/run-log', icon: '⚙️', bg: 'linear-gradient(135deg,#64748b,#475569)' },
@@ -502,6 +545,10 @@ const toggleUserRole = async (u) => {
 }
 
 const deleteUser = async (u) => {
+  if (u.id === user.value?.id) {
+    toast.error('不能删除自己的账户')
+    return
+  }
   const ok = await confirm('删除用户', `确定要删除用户 ${u.username} 吗？`)
   if (!ok) return
   try {
@@ -509,6 +556,46 @@ const deleteUser = async (u) => {
     toast.success('删除成功')
     loadUsers()
   } catch (e) { toast.error('删除失败') }
+}
+
+
+// ---------- 权限设置 ----------
+const assignablePerms = [
+  { key: 'export', name: '数据导出', icon: '📤' },
+  { key: 'oplog', name: '操作日志', icon: '📋' },
+  { key: 'runlog', name: '运行日志', icon: '📊' },
+  { key: 'database', name: '数据库管理', icon: '🗄️' },
+  { key: 'email', name: '邮件配置', icon: '📧' }
+]
+
+const permModalVisible = ref(false)
+const permTargetUser = ref(null)
+const selectedPerms = ref([])
+const permSaving = ref(false)
+
+const openPermModal = (u) => {
+  permTargetUser.value = u
+  try {
+    selectedPerms.value = u.permissions ? JSON.parse(u.permissions) : []
+  } catch (e) {
+    selectedPerms.value = []
+  }
+  permModalVisible.value = true
+}
+
+const savePermissions = async () => {
+  if (!permTargetUser.value) return
+  permSaving.value = true
+  try {
+    await userApi.updatePermissions(permTargetUser.value.id, JSON.stringify(selectedPerms.value))
+    toast.success('权限保存成功')
+    permModalVisible.value = false
+    loadUsers()
+  } catch (e) {
+    toast.error('保存失败')
+  } finally {
+    permSaving.value = false
+  }
 }
 
 const loadRecycle = async () => {
@@ -1363,6 +1450,62 @@ onUnmounted(() => {
   .album-grid {
   margin-bottom: 12px; grid-template-columns: repeat(6, 1fr); }
 }
+
+/* ---------- 权限设置弹窗 ---------- */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  animation: modalIn 0.2s ease;
+}
+@keyframes modalIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h3 { margin: 0; font-size: 16px; }
+.modal-close {
+  background: none; border: none; font-size: 24px; cursor: pointer; color: #999;
+}
+.modal-body { padding: 20px; max-height: 60vh; overflow-y: auto; }
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.perm-list { display: flex; flex-direction: column; gap: 8px; }
+.perm-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.perm-item input[type="checkbox"] { width: 18px; height: 18px; }
+.perm-icon { font-size: 20px; }
+.perm-text { font-size: 14px; color: #333; }
 </style>
+
+
+
 
 

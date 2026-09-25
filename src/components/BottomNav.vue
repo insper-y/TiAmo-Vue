@@ -8,9 +8,6 @@
       <span class="nav-icon">🖼️</span>
       <span class="nav-text">相册</span>
     </button>
-    <button class="nav-item nav-add" @click="$emit('go', 'add')">
-      <span class="nav-icon">➕</span>
-    </button>
     <button v-if="isAdmin" class="nav-item" :class="{active: active === 'logs'}" @click="$emit('go', 'logs')">
       <span class="nav-icon">📋</span>
       <span class="nav-text">操作日志</span>
@@ -28,9 +25,7 @@
 
 <script setup>
 defineProps({
-  // 'home' | 'album' | 'logs' | 'runlog' | 'me' | ''
   active: { type: String, default: '' },
-  // 操作日志与运行日志属于管理员专属页面，普通用户不展示入口
   isAdmin: { type: Boolean, default: false }
 })
 defineEmits(['go'])
@@ -66,19 +61,6 @@ defineEmits(['go'])
 .nav-item.active { color: #6366f1; }
 .nav-icon { font-size: 18px; }
 .nav-text { font-size: 10px; white-space: nowrap; }
-.nav-add {
-  width: 44px;
-  height: 44px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  border-radius: 50%;
-  color: white;
-  margin-top: -18px;
-  box-shadow: 0 4px 12px rgba(99,102,241,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.nav-add .nav-icon { font-size: 22px; }
 @media (min-width: 769px) {
   .bottom-nav { display: none; }
 }
